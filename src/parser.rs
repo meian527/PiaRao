@@ -197,6 +197,7 @@ impl<'a> Parser<'a> {
                     }
                     self.consume(lexer::TokenType::Comma);
                 }
+                self.consume(lexer::TokenType::RParen);
                 result = ast::Expr::DynCall(Box::new(result), args);
             }
             result
@@ -306,7 +307,6 @@ impl<'a> Parser<'a> {
             if self.match_ok(lexer::TokenType::Arrow) {
                 break
             }
-            self.consume(lexer::TokenType::Comma);
         }
         self.consume(lexer::TokenType::Arrow);
         ast::Expr::Lambda(params, Box::new(self.parse_expr()))
