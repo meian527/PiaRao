@@ -20,12 +20,13 @@ fn main() {
     // );
     let src = String::from(
         r#"
-        print('Hello, World!');
+        print(fn -> 0);
+        print((fn -> 4 + 5)());
         "#
     );
     let mut lang_state = lang::LangState::new(&src);
     lang_state.get_interp_mut().new_func("print".to_string(), vec![usize::MAX],  | args | {
-        for arg in args.args {
+        for arg in args.args.iter() {
             println!("{}", arg);
         }
         Value::Null

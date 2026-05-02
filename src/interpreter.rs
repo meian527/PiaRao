@@ -118,7 +118,7 @@ impl ModuleFuncArgs {
 }
 
 type ModuleFnPtr = unsafe fn(ModuleFuncArgs) -> Value;
-#[allow(dead_code)]
+#[allow(dead_code, unpredictable_function_pointer_comparisons)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum FunctionImpl {
     General(ast::Expr),
@@ -444,7 +444,6 @@ impl Interpreter {
                     func: Some(self.cur_func.clone()),
                     last_ret_idx: self.pc,
                 });
-                let func_body = self.cur_func.body.clone();
                 let last_pc = self.pc;
                 self.pc = 0;
 
