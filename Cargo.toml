@@ -1,0 +1,10 @@
+[package]
+name = "lab-fp-lang"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+phf = { version = "0.11", features = ["macros"] }
+dashu-ratio = "0.4"
+dashu-macros = "0.4.1"
+dashu-base = "0.4.1"
