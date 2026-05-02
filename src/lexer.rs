@@ -25,6 +25,7 @@ pub enum TokenType {
     Assign,
     Arrow,
     Digit,
+    StringLiteral,
     SemiColon,
     Comma,
     Dot,
@@ -187,6 +188,16 @@ impl<'a> Lexer<'a> {
                             _ => panic!("Unexpected operator '{}'", result.v),
                         }
                     }
+                }
+                b'"' | b'\'' => {
+                    let end_tag = self.s[self.pos];
+                    self.advance();
+                    while self.s[self.pos] != end_tag {
+                        result.v.push(self.s[self.pos] as char);
+                        self.advance();
+                    }
+                    self.advance();
+                    result.t = TokenType::StringLiteral;
                 }
                 _ => {
                     if self.s[self.pos].is_ascii_digit() {

@@ -2,9 +2,11 @@ use crate::ast;
 use dashu_base::{Abs, Signed};
 use dashu_ratio::RBig;
 use std::collections::HashMap;
+use std::fmt::Display;
 
 #[derive(Clone, Debug, PartialEq)]
 #[allow(dead_code)]
+#[repr(C)]
 pub enum Value {
     Number(RBig),
     String(String),
@@ -12,6 +14,29 @@ pub enum Value {
     Null,
     Bool(bool),
 }
+
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Number(n) => write!(f, "{}", Interpreter::rbig_to_float_str(n, 10)),
+            Value::String(s) => write!(f, "{}", s),
+            Value::Bool(b) => write!(f, "{}", b),
+            Value::Lambda(func) => write!(f, "Lambda<address:{:p}>", func as *const _),
+            Value::Null => write!(f, "Null"),
+        }
+    }
+}
+
+#[allow(dead_code)]
+const VALUE_NUMBER: usize = 0;
+#[allow(dead_code)]
+const VALUE_STRING: usize = 1;
+#[allow(dead_code)]
+const VALUE_LAMBDA: usize = 2;
+#[allow(dead_code)]
+const VALUE_NULL: usize = 3;
+#[allow(dead_code)]
+const VALUE_BOOL: usize = 4;
 impl Value {
     #[allow(dead_code)]
     pub fn set(&mut self, new_v: Value) -> Option<&Value> {
@@ -33,34 +58,91 @@ impl Value {
             _ => "Null".to_string(),
         }
     }
+
+    #[allow(dead_code)]
+    pub fn string_to_type(s: &str) -> usize {
+        match s {
+            "Number" => VALUE_NUMBER,
+            "String" => VALUE_STRING,
+            "Lambda" => VALUE_LAMBDA,
+            "Bool" => VALUE_BOOL,
+            "Null" => VALUE_NULL,
+            &_ => usize::MAX,
+        }
+    }
+    pub fn type_to_string(id: usize) -> String {
+        match id {
+            VALUE_NUMBER => "Number".to_string(),
+            VALUE_STRING => "String".to_string(),
+            VALUE_LAMBDA => "Lambda".to_string(),
+            VALUE_NULL => "Null".to_string(),
+            VALUE_BOOL => "Bool".to_string(),
+            _ => "<Unknown>".to_string(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn type_id(&self) -> usize {
+        match self {
+            Value::Number(_) => VALUE_NUMBER,
+            Value::String(_) => VALUE_STRING,
+            Value::Lambda(_) => VALUE_LAMBDA,
+            Value::Bool(_) => VALUE_BOOL,
+            Value::Null => VALUE_NULL,
+        }
+    }
 }
 
+#[repr(C)]
+#[derive(Clone)]
 #[allow(dead_code)]
-pub enum ValueLiteral {
-    Digit,
-    Fraction,
-    String,
-    Bool,
+pub struct ModuleFuncArgs {
+    pub args: Vec<Value>
+}
+impl ModuleFuncArgs {
+
+    #[allow(dead_code)]
+    pub fn new(args: Vec<Value>) -> Self {
+        ModuleFuncArgs { args }
+    }
+
+    #[allow(dead_code)]
+    pub fn check_types(&self, args: &[usize]) -> bool {
+        for (marg, arg) in args.iter().zip(self.args.iter()) {
+            if *marg != arg.type_id() {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+type ModuleFnPtr = unsafe fn(ModuleFuncArgs) -> Value;
+#[allow(dead_code)]
+#[derive(Clone, Debug, PartialEq)]
+pub enum FunctionImpl {
+    General(ast::Expr),
+    Native(Vec<usize>, ModuleFnPtr),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Function {
     params: Vec<String>,
-    body: ast::Expr,
+    body: FunctionImpl,
 }
 impl Function {
     #[allow(dead_code)]
-    pub fn new(params: Vec<String>, body: ast::Expr) -> Self {
+    pub fn new(params: Vec<String>, body: FunctionImpl) -> Self {
         Self { params, body }
     }
-    pub fn reset(&mut self, params: Vec<String>, body: ast::Expr) {
+    pub fn reset(&mut self, params: Vec<String>, body: FunctionImpl) {
         self.params = params;
         self.body = body;
     }
 }
 static GLOBAL_MAIN_FUNC: Function = Function {
     params: Vec::new(),
-    body: ast::Expr::Block(Vec::new()),
+    body: FunctionImpl::General(ast::Expr::Block(Vec::new()))
 };
 
 #[allow(dead_code)]
@@ -88,10 +170,17 @@ impl FunctionFrame {
     }
 }
 
+#[allow(dead_code)]
+pub struct Module {
+    functions: Vec<Function>,
+    sub_modules: Vec<Module>,
+}
+
+#[allow(dead_code)]
 pub struct Interpreter {
-    // funcs: HashMap<String, RefCell<&'a Function>>,
     stack: Vec<Value>,
     frames: Vec<FunctionFrame>,
+    loaded_modules: HashMap<String, Module>,
     pub prog: ast::Program,
     pc: usize,
     cur_func: Function,
@@ -100,7 +189,6 @@ pub struct Interpreter {
 impl Interpreter {
     pub fn new(prog: ast::Program) -> Self {
         Self {
-            // funcs: HashMap::new(),
             stack: Vec::new(),
             frames: {
                 let mut result = Vec::new();
@@ -116,6 +204,7 @@ impl Interpreter {
             pc: 0,
             cur_func: GLOBAL_MAIN_FUNC.clone(),
             counter: 0,
+            loaded_modules: HashMap::new(),
         }
     }
     pub fn interpret(&mut self) {
@@ -162,7 +251,7 @@ impl Interpreter {
                     let name = &params[0];
                     let func = Function {
                         params: params[1..].to_vec(),
-                        body: r.as_ref().clone(),
+                        body: FunctionImpl::General(r.as_ref().clone()),
                     };
                     self.frames
                         .last_mut()
@@ -316,7 +405,7 @@ impl Interpreter {
                 self.stack.push(Value::Lambda(
                     Function {
                         params: params.clone(),
-                        body: body.as_ref().clone(),
+                        body: FunctionImpl::General(body.as_ref().clone()),
                     }
                 ));
             }
@@ -332,31 +421,64 @@ impl Interpreter {
                     self.error(l,c, "This expression was not returned value");
                 }
             }
+            ast::Expr::String(s) => {
+                self.stack.push(Value::String(s.clone()));
+            }
             _ => unimplemented!(),
         }
     }
     #[inline]
     fn func_call(&mut self, name: &String, func: Function, args: &Vec<ast::Expr>, l: usize, c: usize) {
-        self.cur_func.reset(func.params, func.body);
-        let mut vars = HashMap::new();
-        let iter = self.cur_func.params.clone();
-        for (param, arg) in iter.into_iter().zip(args.into_iter()) {
-            self.eval_expr(arg, l, c);
-            vars.insert(param, self.stack.pop().unwrap());
+        match &func.body {
+            FunctionImpl::General(body) => {
+                self.cur_func.reset(func.params, func.body.clone());
+                let mut vars = HashMap::new();
+                let iter = self.cur_func.params.clone();
+                for (param, arg) in iter.into_iter().zip(args.into_iter()) {
+                    self.eval_expr(arg, l, c);
+                    vars.insert(param, self.stack.pop().unwrap());
+                }
+                self.frames.push(FunctionFrame {
+                    name: name.clone(),
+                    vars,
+                    func: Some(self.cur_func.clone()),
+                    last_ret_idx: self.pc,
+                });
+                let func_body = self.cur_func.body.clone();
+                let last_pc = self.pc;
+                self.pc = 0;
+
+                // println!("calling: {}", name);
+                self.eval_expr(body, l, c);
+
+                self.pc = last_pc;
+                self.frames.pop();
+
+            },
+            FunctionImpl::Native(ts, ptr) => {
+                let mut calling_args = Vec::<Value>::new();
+                if ts.len() > 1 && ts[0] != usize::MAX {    //只有一个且为最大，就是不定长参数
+                    for i in (0..=ts.len()).rev() {
+                        if let Some(v) = self.stack.pop() {
+                            if v.type_id() == ts[i] {
+                                calling_args.push(v);
+                            } else {
+                                self.error(l, c, &format!("Type error: expected `{}` but got `{}`", Value::type_to_string(ts[i]), v.type_info()));
+                            }
+                        }
+                    }
+                } else {
+                    for arg in args.iter() {
+                        self.eval_expr(arg, l, c);
+                        calling_args.push(self.stack.pop().unwrap());
+                    }
+                }
+                unsafe {
+                    self.stack.push(ptr(ModuleFuncArgs::new(calling_args)));
+                }
+            }
         }
-        self.frames.push(FunctionFrame {
-            name: name.clone(),
-            vars,
-            func: Some(self.cur_func.clone()),
-            last_ret_idx: self.pc,
-        });
-        let func_body = self.cur_func.body.clone();
-        let last_pc = self.pc;
-        self.pc = 0;
-        // println!("calling: {}", name);
-        self.eval_expr(&func_body, l, c);
-        self.pc = last_pc;
-        self.frames.pop();
+
     }
 
     #[allow(dead_code)]
@@ -417,37 +539,26 @@ impl Interpreter {
             format!("{}{}.{}", sign, int_part, frac)
         }
     }
-    pub fn print_var(&self, name: &str, form: ValueLiteral) {
+    pub fn print_var(&self, name: &str) {
         for frame in self.frames.iter().rev() {
             if let Some(val) = frame.vars.get(name) {
-                match form {
-                    ValueLiteral::Digit => {
-                        if let Value::Number(n) = val {
-                            println!("{} = {}", name, Self::rbig_to_float_str(n, 10));
-                            return;
-                        }
-                    }
-                    ValueLiteral::String => {
-                        if let Value::String(s) = val {
-                            println!("{} = \"{}\"", name, s);
-                            return;
-                        }
-                    }
-                    ValueLiteral::Bool => {
-                        if let Value::Bool(b) = val {
-                            println!("{} = {}", name, b);
-                            return;
-                        }
-                    }
-                    ValueLiteral::Fraction => {
-                        if let Value::Number(n) = val {
-                            println!("{} = {}", name, n);
-                            return;
-                        }
-                    }
-                }
+                println!("`{}` = {}", name, val);
+                return;
             }
         }
         println!("`{}` not found!", name);
+    }
+
+    #[allow(dead_code)]
+    pub fn new_func(&mut self, name: String, ts: Vec<usize>, func: ModuleFnPtr) {
+        self.frames[0].vars.insert(name.clone(), Value::Lambda(Function {
+            params: vec!["@".to_string()],
+            body: FunctionImpl::Native(ts, func),
+        }));
+    }
+
+    #[allow(dead_code)]
+    pub fn new_var(&mut self, name: String, var: Value) {
+        self.frames[0].vars.insert(name, var);
     }
 }

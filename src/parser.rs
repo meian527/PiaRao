@@ -275,6 +275,10 @@ impl<'a> Parser<'a> {
         } else if self.match_ok(lexer::TokenType::KWFn) {
             self.advance();
             self.parse_lambda_expr()
+        } else if self.match_ok(lexer::TokenType::StringLiteral) {
+            let str = self.cur().v.clone();
+            self.advance();
+            ast::Expr::String(str)
         }
         else {
             self.error(

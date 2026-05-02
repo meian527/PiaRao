@@ -10,6 +10,7 @@ pub enum Stmt {
 pub enum Expr {
     Number(i64),
     Float(String),
+    String(String),
     Ident(String),
     BinaryOp(Box<Expr>, String, Box<Expr>),
     UnaryOp(String, Box<Expr>),

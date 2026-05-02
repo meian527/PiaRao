@@ -1,5 +1,4 @@
 use crate::interpreter::Interpreter;
-use crate::interpreter::ValueLiteral;
 use crate::lexer;
 use crate::parser;
 
@@ -24,8 +23,10 @@ impl LangState {
     pub fn interpret(&mut self) {
         self.interp.interpret();
     }
-    pub fn print_var(&self, name: &str, form: ValueLiteral) {
-        self.interp.print_var(name, form);
+    
+    #[allow(dead_code)]
+    pub fn print_var(&self, name: &str) {
+        self.interp.print_var(name);
     }
     #[allow(dead_code)]
     pub fn print_stack_top(&self) {
@@ -35,5 +36,9 @@ impl LangState {
     #[allow(dead_code)]
     pub fn print_ast(&self) {
         println!("{:#?}", self.interp.prog);
+    }
+    
+    pub fn get_interp_mut(&mut self) -> &mut Interpreter {
+        &mut self.interp
     }
 }
