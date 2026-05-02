@@ -164,7 +164,7 @@ impl<'a> Parser<'a> {
             let name = self.cur().v.clone();
             self.advance();
             if self.match_ok(lexer::TokenType::LParen) {
-                // 带括号的函数调用: fib(30)
+                // 带括号的函数调用
                 self.advance();
                 let mut args = Vec::new();
                 while !self.match_ok(lexer::TokenType::RParen) {
@@ -176,7 +176,7 @@ impl<'a> Parser<'a> {
                 self.consume(lexer::TokenType::RParen);
                 ast::Expr::Call(name, args)
             } else if self.is_primary_start() && !self.match_ok(lexer::TokenType::EOF) {
-                // 无括号的函数调用: fib 30
+                // 无括号的函数调用
                 let mut args = Vec::new();
                 while self.is_primary_start() {
                     args.push(self.parse_primary());
@@ -186,7 +186,20 @@ impl<'a> Parser<'a> {
                 ast::Expr::Ident(name)
             }
         } else {
-            self.parse_primary()
+            let mut result = self.parse_primary();
+            if self.match_ok(lexer::TokenType::LParen) {
+                self.advance();
+                let mut args = Vec::new();
+                while !self.match_ok(lexer::TokenType::RParen) {
+                    args.push(self.parse_expr());
+                    if self.match_ok(lexer::TokenType::RParen) {
+                        break;
+                    }
+                    self.consume(lexer::TokenType::Comma);
+                }
+                result = ast::Expr::DynCall(Box::new(result), args);
+            }
+            result
         }
     }
     fn is_primary_start(&self) -> bool {
@@ -256,7 +269,11 @@ impl<'a> Parser<'a> {
         } else if self.match_ok(lexer::TokenType::KWIf) {
             self.advance();
             self.parse_if_expr()
-        } else {
+        } else if self.match_ok(lexer::TokenType::KWFn) {
+            self.advance();
+            self.parse_lambda_expr()
+        }
+        else {
             self.error(
                 self.cur().l,
                 self.cur().c,
@@ -277,7 +294,22 @@ impl<'a> Parser<'a> {
             None
         };
         ast::Expr::If(Box::new(cond), Box::new(then), else_branch)
-        // ast::Expr::If(Box::new(self.parse_expr()), (), ())
+    }
+
+    fn parse_lambda_expr(&mut self) -> ast::Expr {
+        let mut params = Vec::new();
+        while !self.match_ok(lexer::TokenType::Arrow) {
+            if self.match_ok(lexer::TokenType::Ident) {
+                params.push(self.cur().v.clone());
+                self.advance();
+            }
+            if self.match_ok(lexer::TokenType::Arrow) {
+                break
+            }
+            self.consume(lexer::TokenType::Comma);
+        }
+        self.consume(lexer::TokenType::Arrow);
+        ast::Expr::Lambda(params, Box::new(self.parse_expr()))
     }
     pub fn parse(&mut self) -> ast::Program {
         let mut body = Vec::new();

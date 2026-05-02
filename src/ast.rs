@@ -16,6 +16,8 @@ pub enum Expr {
     Assign(String, Box<Expr>),
     Block(Vec<Node>),
     Call(String, Vec<Expr>),
+    DynCall(Box<Expr>, Vec<Expr>),
+    Lambda(Vec<String>, Box<Expr>),
     Null,                                        // not null value, this is null expr
     IdentList(Vec<String>),                      // for function parameters
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>), // condition, then, else

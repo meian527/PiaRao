@@ -9,7 +9,7 @@ use std::time::Instant;
 fn main() {
     let src = String::from(
         r#"
-        let fib n = if n <= 1 then n else fib(n - 1) + fib(n - 2);
+        let fib = fn n -> if n <= 1 then n else fib(n - 1) + fib(n - 2);
         let result = fib 30;
         "#,
     );

@@ -23,6 +23,7 @@ pub enum TokenType {
     LParen,
     RParen,
     Assign,
+    Arrow,
     Digit,
     SemiColon,
     Comma,
@@ -132,15 +133,23 @@ impl<'a> Lexer<'a> {
                         result.v.push(self.s[self.pos] as char);
                         self.advance();
                         result.t = TokenType::OpNe;
-                    } else if result.v.as_bytes()[0] == b'-' && self.s[self.pos].is_ascii_digit() {
-                        result.t = TokenType::Digit;
-                        while self.s[self.pos].is_ascii_digit() {
+                    } else if result.v.as_bytes()[0] == b'-'  {
+                        if self.s[self.pos].is_ascii_digit() {
+                            result.t = TokenType::Digit;
+                            while self.s[self.pos].is_ascii_digit() {
+                                result.v.push(self.s[self.pos] as char);
+                                self.advance();
+                            }
+                            let tmp = result.v.clone();
+                            result.v = b'-'.to_string();
+                            result.v.push_str(tmp.as_str());
+                        } else if self.s[self.pos] == b'>' {
                             result.v.push(self.s[self.pos] as char);
                             self.advance();
+                            result.t = TokenType::Arrow;
+                        } else {
+                            result.t = TokenType::OpSub;
                         }
-                        let tmp = result.v.clone();
-                        result.v = b'-'.to_string();
-                        result.v.push_str(tmp.as_str());
                     } else if self.s[self.pos] == b'(' {
                         self.advance();
                         result.t = match result.v.as_bytes()[0] {

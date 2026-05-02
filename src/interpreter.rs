@@ -243,38 +243,11 @@ impl Interpreter {
                 self.frames.last_mut().unwrap().vars = save_vars;
             }
             ast::Expr::Call(name, args) => {
-                //self.cur_func = &*self.funcs.get(name).unwrap().borrow();
                 if let Some(Value::Lambda(func)) = self.find_var(name).cloned() {
-                    self.cur_func.reset(func.params, func.body);
+                    self.func_call(name, func, args, l, c);
                 } else {
                     self.error(l, c, &format!("Undefined function '{}'", name));
                 }
-                // if let Some(func) = self.cur_func {
-                // 	if func.params.len() != args.len() {
-                // 		self.error(l, c, &format!("Function '{}' expects {} arguments but got {} arguments", name, func.params.len(), args.len()));
-                // 	}
-                // } else {
-                // 	self.error(l, c, &format!("Undefined function '{}'", name));
-                // }
-                let mut vars = HashMap::new();
-                let iter = self.cur_func.params.clone();
-                for (param, arg) in iter.into_iter().zip(args.into_iter()) {
-                    self.eval_expr(arg, l, c);
-                    vars.insert(param, self.stack.pop().unwrap());
-                }
-                self.frames.push(FunctionFrame {
-                    name: name.clone(),
-                    vars,
-                    func: Some(self.cur_func.clone()),
-                    last_ret_idx: self.pc,
-                });
-                let func_body = self.cur_func.body.clone();
-                let last_pc = self.pc;
-                self.pc = 0;
-                // println!("calling: {}", name);
-                self.eval_expr(&func_body, l, c);
-                self.pc = last_pc;
-                self.frames.pop();
             }
             ast::Expr::UnaryOp(op, expr) => {
                 self.eval_expr(expr, l, c);
@@ -320,8 +293,51 @@ impl Interpreter {
                     );
                 }
             }
+            ast::Expr::Lambda(params, body) => {
+                self.stack.push(Value::Lambda(
+                    Function {
+                        params: params.clone(),
+                        body: body.as_ref().clone(),
+                    }
+                ));
+            }
+            ast::Expr::DynCall(func, args) => {
+                self.eval_expr(func, l, c);
+                if let Some(f) = self.stack.pop() {
+                    if let Value::Lambda(func) = f {
+                        self.func_call(&format!("Lambda<{}>", self.counter), func, args, l, c);
+                    } else {
+                        self.error(l, c, "This expression was not returned Lambda, cannot be called");
+                    }
+                } else {
+                    self.error(l,c, "This expression was not returned value");
+                }
+            }
             _ => unimplemented!(),
         }
+    }
+    
+    fn func_call(&mut self, name: &String, func: Function, args: &Vec<ast::Expr>, l: usize, c: usize) {
+        self.cur_func.reset(func.params, func.body);
+        let mut vars = HashMap::new();
+        let iter = self.cur_func.params.clone();
+        for (param, arg) in iter.into_iter().zip(args.into_iter()) {
+            self.eval_expr(arg, l, c);
+            vars.insert(param, self.stack.pop().unwrap());
+        }
+        self.frames.push(FunctionFrame {
+            name: name.clone(),
+            vars,
+            func: Some(self.cur_func.clone()),
+            last_ret_idx: self.pc,
+        });
+        let func_body = self.cur_func.body.clone();
+        let last_pc = self.pc;
+        self.pc = 0;
+        // println!("calling: {}", name);
+        self.eval_expr(&func_body, l, c);
+        self.pc = last_pc;
+        self.frames.pop();
     }
 
     #[allow(dead_code)]
