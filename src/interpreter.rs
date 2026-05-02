@@ -12,6 +12,28 @@ pub enum Value {
     Null,
     Bool(bool),
 }
+impl Value {
+    #[allow(dead_code)]
+    pub fn set(&mut self, new_v: Value) -> Option<&Value> {
+        match (self, new_v) {
+            (Value::Number(x), Value::Number(y)) => *x = y.clone(),
+            (Value::Lambda(x), Value::Lambda(y)) => *x = y.clone(),
+            (Value::Bool(x), Value::Bool(y)) => *x = y.clone(),
+            (Value::String(x), Value::String(y)) => *x = y.clone(),
+            _ => return None,
+        }
+        None
+    }
+    pub fn type_info(&self) -> String {
+        match self {
+            Value::Number(_) => "Number".to_string(),
+            Value::String(_) => "String".to_string(),
+            Value::Lambda(_) => "Lambda".to_string(),
+            Value::Bool(_) => "Bool".to_string(),
+            _ => "Null".to_string(),
+        }
+    }
+}
 
 #[allow(dead_code)]
 pub enum ValueLiteral {
@@ -56,6 +78,7 @@ pub struct Interpreter {
     pub prog: ast::Program,
     pc: usize,
     cur_func: Function,
+    counter: usize,
 }
 impl Interpreter {
     pub fn new(prog: ast::Program) -> Self {
@@ -75,6 +98,7 @@ impl Interpreter {
             prog,
             pc: 0,
             cur_func: GLOBAL_MAIN_FUNC.clone(),
+            counter: 0,
         }
     }
     pub fn interpret(&mut self) {
@@ -84,8 +108,10 @@ impl Interpreter {
         }
     }
     fn error(&self, l: usize, c: usize, msg: &str) {
-        println!("Traceback: \n");
-        for frame in self.frames.iter() {
+        println!("Traceback: ");
+        let mut iter = self.frames.iter();
+        iter.next();
+        for frame in iter {
             println!("\tin function calling '{}()'", frame.name);
         }
         panic!("Error: at {}, {}\t: {}", l, c, msg);
@@ -156,8 +182,8 @@ impl Interpreter {
             ast::Expr::Number(n) => self.stack.push(Value::Number(RBig::from(*n))),
             ast::Expr::Float(n) => self.stack.push(Value::Number(Self::parse_float_string(n))),
             ast::Expr::Ident(s) => {
-                if let Some(val) = self.frames.last().unwrap().vars.get(s) {
-                    self.stack.push(val.clone());
+                if let Some(val) = self.find_var(s).cloned() {
+                    self.stack.push(val);
                 } else {
                     self.error(l, c, &format!("Undefined variable '{}'", s));
                 }
@@ -169,20 +195,25 @@ impl Interpreter {
                         self.eval_expr(rhs, l, c);
                         if let Value::Number(ln) = self.stack.pop().unwrap() {
                             match op.as_str() {
-                                "+" => self.stack.push(Value::Number(ln + r)),
-                                "-" => self.stack.push(Value::Number(ln - r)),
-                                "*" => self.stack.push(Value::Number(ln * r)),
-                                "/" => self.stack.push(Value::Number(ln / r)),
-                                "%" => self.stack.push(Value::Number(ln % r)),
+                                "+" => self.stack.push(Value::Number(r + ln)),
+                                "-" => self.stack.push(Value::Number(r - ln)),
+                                "*" => self.stack.push(Value::Number(r * ln)),
+                                "/" => self.stack.push(Value::Number(r / ln)),
+                                "%" => self.stack.push(Value::Number(r / ln)),
                                 "^" => self
                                     .stack
                                     .push(Value::Number(ln.pow(r.clone().try_into().unwrap()))),
-                                "=="  => self.stack.push(Value::Bool(ln == r)),
-                                "!="  => self.stack.push(Value::Bool(ln != r)),
-                                ">"   => self.stack.push(Value::Bool(ln > r)),
-                                "<"   => self.stack.push(Value::Bool(ln < r)),
-                                ">="  => self.stack.push(Value::Bool(ln >= r)),
-                                "<="  => self.stack.push(Value::Bool(ln <= r)),    
+                                "==" => self.stack.push(Value::Bool(r == ln)),
+                                "!=" => self.stack.push(Value::Bool(r != ln)),
+                                ">" => self.stack.push(Value::Bool(r > ln)),
+                                "<" => self.stack.push(Value::Bool(r < ln)),
+                                ">=" => self.stack.push(Value::Bool(r >= ln)),
+                                "<=" => self.stack.push(Value::Bool(r <= ln)),
+                                "=" => {
+                                    //if let ast::Expr::Ident(name) = &**lhs {
+
+                                    //}
+                                }
                                 _ => {
                                     self.error(l, c, &format!("Unknown operator '{}'", op));
                                 }
@@ -213,9 +244,7 @@ impl Interpreter {
             }
             ast::Expr::Call(name, args) => {
                 //self.cur_func = &*self.funcs.get(name).unwrap().borrow();
-                if let Some(Value::Lambda(func)) =
-                    self.frames.last().unwrap().vars.get(name).cloned()
-                {
+                if let Some(Value::Lambda(func)) = self.find_var(name).cloned() {
                     self.cur_func.reset(func.params, func.body);
                 } else {
                     self.error(l, c, &format!("Undefined function '{}'", name));
@@ -229,21 +258,23 @@ impl Interpreter {
                 // }
                 let mut vars = HashMap::new();
                 let iter = self.cur_func.params.clone();
-                for (param, arg) in iter.iter().zip(args.iter()) {
+                for (param, arg) in iter.into_iter().zip(args.into_iter()) {
                     self.eval_expr(arg, l, c);
-                    vars.insert(param.clone(), self.stack.pop().unwrap());
+                    vars.insert(param, self.stack.pop().unwrap());
                 }
                 self.frames.push(FunctionFrame {
                     name: name.clone(),
-                    vars: vars,
+                    vars,
                     func: Some(self.cur_func.clone()),
                     last_ret_idx: self.pc,
                 });
                 let func_body = self.cur_func.body.clone();
                 let last_pc = self.pc;
                 self.pc = 0;
+                // println!("calling: {}", name);
                 self.eval_expr(&func_body, l, c);
                 self.pc = last_pc;
+                self.frames.pop();
             }
             ast::Expr::UnaryOp(op, expr) => {
                 self.eval_expr(expr, l, c);
@@ -265,6 +296,30 @@ impl Interpreter {
                 }
             }
             ast::Expr::Null => return,
+            ast::Expr::If(cond, then, els) => {
+                self.eval_expr(cond, l, c);
+                let cond_result = self.stack.pop().unwrap();
+                if let Value::Bool(b) = cond_result {
+                    if b {
+                        self.eval_expr(then, l, c);
+                    } else {
+                        if let Some(els) = els {
+                            self.eval_expr(els, l, c);
+                        } else {
+                            self.stack.push(Value::Null);
+                        }
+                    }
+                } else {
+                    self.error(
+                        l,
+                        c,
+                        &format!(
+                            "if expression condition result must be `Bool` type but got `{}` type",
+                            cond_result.type_info()
+                        ),
+                    );
+                }
+            }
             _ => unimplemented!(),
         }
     }
@@ -276,6 +331,26 @@ impl Interpreter {
         } else {
             println!("Stack is empty");
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn find_var(&mut self, name: &str) -> Option<&Value> {
+        for v in self.frames.last().unwrap().vars.iter() {
+            if v.0 == name {
+                return Some(v.1);
+            }
+        } //被调用者的帧
+        for v in self.frames[self.frames.len() - 2].vars.iter() {
+            if v.0 == name {
+                return Some(v.1);
+            }
+        } //调用者的帧
+        for v in self.frames.first().unwrap().vars.iter() {
+            if v.0 == name {
+                return Some(v.1);
+            }
+        } //全局作用域
+        None
     }
 
     #[allow(dead_code)]
@@ -336,9 +411,8 @@ impl Interpreter {
                         }
                     }
                 }
-                return;
             }
         }
-        println!("{} not found", name);
+        println!("`{}` not found!", name);
     }
 }
