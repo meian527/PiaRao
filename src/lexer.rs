@@ -121,7 +121,7 @@ impl<'a> Lexer<'a> {
         self.skip_whitespace();
         if self.pos < self.len {
             match self.s[self.pos] {
-                b'+' | b'*' | b'/' | b'%' | b'^' | b'(' | b')' | b';' | b',' | b'.' => {
+                b'+' | b'*' | b'/' | b'%' | b'^' | b'(' | b')' | b';' | b',' | b'.' | b'{' | b'}' => {
                     result.v.push(self.s[self.pos] as char);
                     result.t = TOKEN_TYPE_STR[&self.s[self.pos]].clone();
                     self.advance();

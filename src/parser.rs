@@ -86,8 +86,10 @@ impl<'a> Parser<'a> {
      * primary ::= number | ident | '(' expr ')' |
      */
     fn parse_expr(&mut self) -> ast::Expr {
-        self.parse_assign()
+        self.parse_logical()
     }
+    
+    #[allow(dead_code)]
     fn parse_assign(&mut self) -> ast::Expr {
         let mut node = self.parse_logical();
         if let ast::Expr::Ident(name) = &node {

@@ -64,11 +64,28 @@ static GLOBAL_MAIN_FUNC: Function = Function {
 };
 
 #[allow(dead_code)]
+#[derive(Clone)]
 pub struct FunctionFrame {
     name: String,
     vars: HashMap<String, Value>,
     func: Option<Function>,
     last_ret_idx: usize,
+}
+
+impl FunctionFrame {
+    #[allow(dead_code)]
+    pub fn reset(&mut self, name: &String, vars: &HashMap<String, Value>, func: Option<&Function>, last_ret_idx: usize) {
+        self.name = name.clone();
+        self.vars = vars.clone();
+        self.func = func.cloned();
+        self.last_ret_idx = last_ret_idx;
+    }
+    pub fn reset_to(&mut self, other: FunctionFrame) {
+        self.name = other.name;
+        self.vars = other.vars;
+        self.func = other.func;
+        self.last_ret_idx = other.last_ret_idx;
+    }
 }
 
 pub struct Interpreter {
@@ -236,11 +253,13 @@ impl Interpreter {
                     .insert(name.clone(), self.stack.pop().unwrap());
             }
             ast::Expr::Block(stmts) => {
-                let save_vars = self.frames.last().unwrap().vars.clone();
+                let save_frame = self.frames.last().cloned().unwrap();
                 for stmt in stmts.iter() {
                     self.eval_stmt(&stmt.stmt, stmt.l, stmt.c);
                 }
-                self.frames.last_mut().unwrap().vars = save_vars;
+                if let Some(frame_last) = self.frames.last_mut() {
+                    frame_last.reset_to(save_frame);
+                };
             }
             ast::Expr::Call(name, args) => {
                 if let Some(Value::Lambda(func)) = self.find_var(name).cloned() {
@@ -316,7 +335,7 @@ impl Interpreter {
             _ => unimplemented!(),
         }
     }
-    
+    #[inline]
     fn func_call(&mut self, name: &String, func: Function, args: &Vec<ast::Expr>, l: usize, c: usize) {
         self.cur_func.reset(func.params, func.body);
         let mut vars = HashMap::new();
