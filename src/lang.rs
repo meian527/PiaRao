@@ -1,6 +1,6 @@
 use crate::interpreter::Interpreter;
-use crate::lexer;
 use crate::parser;
+use crate::{builtins, lexer};
 
 pub struct LangState {
     pub interp: Interpreter,
@@ -23,7 +23,7 @@ impl LangState {
     pub fn interpret(&mut self) {
         self.interp.interpret();
     }
-    
+
     #[allow(dead_code)]
     pub fn print_var(&self, name: &str) {
         self.interp.print_var(name);
@@ -37,8 +37,17 @@ impl LangState {
     pub fn print_ast(&self) {
         println!("{:#?}", self.interp.prog);
     }
-    
+
+    #[allow(dead_code)]
     pub fn get_interp_mut(&mut self) -> &mut Interpreter {
         &mut self.interp
+    }
+
+    #[allow(dead_code)]
+    pub fn register_builtins(&mut self) {
+        for (name, ptr) in &builtins::BUILTIN_FUNCTIONS {
+            self.interp
+                .new_func(name.to_string(), vec![usize::MAX], ptr.clone());
+        }
     }
 }

@@ -1,11 +1,11 @@
 mod ast;
+mod builtins;
 mod interpreter;
 mod lang;
 mod lexer;
 mod parser;
 
 use std::time::Instant;
-use crate::interpreter::{Value};
 
 fn main() {
     // let src = String::from(
@@ -20,17 +20,13 @@ fn main() {
     // );
     let src = String::from(
         r#"
-        print(fn -> 0);
-        print((fn -> 4 + 5)());
-        "#
+        println((fn -> 0)());
+        println((fn -> 4 + 5)());
+        println("you input:", input("please input: "));
+        "#,
     );
     let mut lang_state = lang::LangState::new(&src);
-    lang_state.get_interp_mut().new_func("print".to_string(), vec![usize::MAX],  | args | {
-        for arg in args.args.iter() {
-            println!("{}", arg);
-        }
-        Value::Null
-    });
+    lang_state.register_builtins();
     // lang_state.print_ast();
     let start = Instant::now();
 

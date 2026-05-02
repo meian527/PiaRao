@@ -88,7 +88,7 @@ impl<'a> Parser<'a> {
     fn parse_expr(&mut self) -> ast::Expr {
         self.parse_logical()
     }
-    
+
     #[allow(dead_code)]
     fn parse_assign(&mut self) -> ast::Expr {
         let mut node = self.parse_logical();
@@ -192,9 +192,13 @@ impl<'a> Parser<'a> {
             if self.match_ok(lexer::TokenType::LParen) {
                 self.advance();
                 let mut args = Vec::new();
-                while !self.match_ok(lexer::TokenType::RParen) {
+                while self.pos < self.tokens.len() && !self.match_ok(lexer::TokenType::RParen) {
                     args.push(self.parse_expr());
-                    if self.match_ok(lexer::TokenType::RParen) {
+                    if self.match_ok(lexer::TokenType::RParen)
+                        || self.match_ok(lexer::TokenType::EOF)
+                        || self.pos >= self.tokens.len()
+                        || self.match_ok(lexer::TokenType::SemiColon)
+                    {
                         break;
                     }
                     self.consume(lexer::TokenType::Comma);
@@ -279,8 +283,7 @@ impl<'a> Parser<'a> {
             let str = self.cur().v.clone();
             self.advance();
             ast::Expr::String(str)
-        }
-        else {
+        } else {
             self.error(
                 self.cur().l,
                 self.cur().c,
@@ -311,7 +314,7 @@ impl<'a> Parser<'a> {
                 self.advance();
             }
             if self.match_ok(lexer::TokenType::Arrow) {
-                break
+                break;
             }
         }
         self.consume(lexer::TokenType::Arrow);

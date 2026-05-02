@@ -122,7 +122,8 @@ impl<'a> Lexer<'a> {
         self.skip_whitespace();
         if self.pos < self.len {
             match self.s[self.pos] {
-                b'+' | b'*' | b'/' | b'%' | b'^' | b'(' | b')' | b';' | b',' | b'.' | b'{' | b'}' => {
+                b'+' | b'*' | b'/' | b'%' | b'^' | b'(' | b')' | b';' | b',' | b'.' | b'{'
+                | b'}' => {
                     result.v.push(self.s[self.pos] as char);
                     result.t = TOKEN_TYPE_STR[&self.s[self.pos]].clone();
                     self.advance();
@@ -134,7 +135,7 @@ impl<'a> Lexer<'a> {
                         result.v.push(self.s[self.pos] as char);
                         self.advance();
                         result.t = TokenType::OpNe;
-                    } else if result.v.as_bytes()[0] == b'-'  {
+                    } else if result.v.as_bytes()[0] == b'-' {
                         if self.s[self.pos].is_ascii_digit() {
                             result.t = TokenType::Digit;
                             while self.s[self.pos].is_ascii_digit() {

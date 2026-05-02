@@ -97,10 +97,9 @@ impl Value {
 #[derive(Clone)]
 #[allow(dead_code)]
 pub struct ModuleFuncArgs {
-    pub args: Vec<Value>
+    pub args: Vec<Value>,
 }
 impl ModuleFuncArgs {
-
     #[allow(dead_code)]
     pub fn new(args: Vec<Value>) -> Self {
         ModuleFuncArgs { args }
@@ -117,7 +116,7 @@ impl ModuleFuncArgs {
     }
 }
 
-type ModuleFnPtr = unsafe fn(ModuleFuncArgs) -> Value;
+pub type ModuleFnPtr = unsafe fn(ModuleFuncArgs) -> Value;
 #[allow(dead_code, unpredictable_function_pointer_comparisons)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum FunctionImpl {
@@ -142,7 +141,7 @@ impl Function {
 }
 static GLOBAL_MAIN_FUNC: Function = Function {
     params: Vec::new(),
-    body: FunctionImpl::General(ast::Expr::Block(Vec::new()))
+    body: FunctionImpl::General(ast::Expr::Block(Vec::new())),
 };
 
 #[allow(dead_code)]
@@ -156,7 +155,13 @@ pub struct FunctionFrame {
 
 impl FunctionFrame {
     #[allow(dead_code)]
-    pub fn reset(&mut self, name: &String, vars: &HashMap<String, Value>, func: Option<&Function>, last_ret_idx: usize) {
+    pub fn reset(
+        &mut self,
+        name: &String,
+        vars: &HashMap<String, Value>,
+        func: Option<&Function>,
+        last_ret_idx: usize,
+    ) {
         self.name = name.clone();
         self.vars = vars.clone();
         self.func = func.cloned();
@@ -402,12 +407,10 @@ impl Interpreter {
                 }
             }
             ast::Expr::Lambda(params, body) => {
-                self.stack.push(Value::Lambda(
-                    Function {
-                        params: params.clone(),
-                        body: FunctionImpl::General(body.as_ref().clone()),
-                    }
-                ));
+                self.stack.push(Value::Lambda(Function {
+                    params: params.clone(),
+                    body: FunctionImpl::General(body.as_ref().clone()),
+                }));
             }
             ast::Expr::DynCall(func, args) => {
                 self.eval_expr(func, l, c);
@@ -415,10 +418,14 @@ impl Interpreter {
                     if let Value::Lambda(func) = f {
                         self.func_call(&format!("Lambda<{}>", self.counter), func, args, l, c);
                     } else {
-                        self.error(l, c, "This expression was not returned Lambda, cannot be called");
+                        self.error(
+                            l,
+                            c,
+                            "This expression was not returned Lambda, cannot be called",
+                        );
                     }
                 } else {
-                    self.error(l,c, "This expression was not returned value");
+                    self.error(l, c, "This expression was not returned value");
                 }
             }
             ast::Expr::String(s) => {
@@ -428,7 +435,14 @@ impl Interpreter {
         }
     }
     #[inline]
-    fn func_call(&mut self, name: &String, func: Function, args: &Vec<ast::Expr>, l: usize, c: usize) {
+    fn func_call(
+        &mut self,
+        name: &String,
+        func: Function,
+        args: &Vec<ast::Expr>,
+        l: usize,
+        c: usize,
+    ) {
         match &func.body {
             FunctionImpl::General(body) => {
                 self.cur_func.reset(func.params, func.body.clone());
@@ -452,17 +466,25 @@ impl Interpreter {
 
                 self.pc = last_pc;
                 self.frames.pop();
-
-            },
+            }
             FunctionImpl::Native(ts, ptr) => {
                 let mut calling_args = Vec::<Value>::new();
-                if ts.len() > 1 && ts[0] != usize::MAX {    //只有一个且为最大，就是不定长参数
+                if ts.len() > 1 && ts[0] != usize::MAX {
+                    //只有一个且为最大，就是不定长参数
                     for i in (0..=ts.len()).rev() {
                         if let Some(v) = self.stack.pop() {
                             if v.type_id() == ts[i] {
                                 calling_args.push(v);
                             } else {
-                                self.error(l, c, &format!("Type error: expected `{}` but got `{}`", Value::type_to_string(ts[i]), v.type_info()));
+                                self.error(
+                                    l,
+                                    c,
+                                    &format!(
+                                        "Type error: expected `{}` but got `{}`",
+                                        Value::type_to_string(ts[i]),
+                                        v.type_info()
+                                    ),
+                                );
                             }
                         }
                     }
@@ -477,7 +499,6 @@ impl Interpreter {
                 }
             }
         }
-
     }
 
     #[allow(dead_code)]
@@ -550,10 +571,13 @@ impl Interpreter {
 
     #[allow(dead_code)]
     pub fn new_func(&mut self, name: String, ts: Vec<usize>, func: ModuleFnPtr) {
-        self.frames[0].vars.insert(name.clone(), Value::Lambda(Function {
-            params: vec!["@".to_string()],
-            body: FunctionImpl::Native(ts, func),
-        }));
+        self.frames[0].vars.insert(
+            name.clone(),
+            Value::Lambda(Function {
+                params: vec!["@".to_string()],
+                body: FunctionImpl::Native(ts, func),
+            }),
+        );
     }
 
     #[allow(dead_code)]
