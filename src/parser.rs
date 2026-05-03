@@ -169,11 +169,16 @@ impl<'a> Parser<'a> {
                 // 带括号的函数调用
                 self.advance();
                 let mut args = Vec::new();
-                while !self.match_ok(lexer::TokenType::RParen) {
+                while self.pos < self.tokens.len() && !self.match_ok(lexer::TokenType::RParen) {
                     args.push(self.parse_expr());
-                    if self.match_ok(lexer::TokenType::Comma) {
-                        self.advance();
+                    if self.match_ok(lexer::TokenType::RParen)
+                        || self.match_ok(lexer::TokenType::EOF)
+                        || self.pos >= self.tokens.len()
+                        || self.match_ok(lexer::TokenType::SemiColon)
+                    {
+                        break;
                     }
+                    self.consume(lexer::TokenType::Comma);
                 }
                 self.consume(lexer::TokenType::RParen);
                 ast::Expr::Call(name, args)
@@ -192,7 +197,11 @@ impl<'a> Parser<'a> {
             if self.match_ok(lexer::TokenType::LParen) {
                 self.advance();
                 let mut args = Vec::new();
-                while self.pos < self.tokens.len() && !self.match_ok(lexer::TokenType::RParen) {
+                while self.pos < self.tokens.len()
+                    && !self.match_ok(lexer::TokenType::RParen)
+                    && self.match_ok(lexer::TokenType::EOF)
+                    && self.match_ok(lexer::TokenType::SemiColon)
+                {
                     args.push(self.parse_expr());
                     if self.match_ok(lexer::TokenType::RParen)
                         || self.match_ok(lexer::TokenType::EOF)
@@ -256,7 +265,10 @@ impl<'a> Parser<'a> {
         } else if self.match_ok(lexer::TokenType::LBrace) {
             self.advance();
             let mut stmts = Vec::new();
-            while !self.match_ok(lexer::TokenType::RBrace) {
+            while self.pos < self.tokens.len() && !self.match_ok(lexer::TokenType::RBrace) {
+                if self.match_ok(lexer::TokenType::EOF) {
+                    break;
+                }
                 stmts.push(self.parse_stmt());
             }
             if let Some(expr) = stmts.last_mut() {
@@ -308,7 +320,10 @@ impl<'a> Parser<'a> {
 
     fn parse_lambda_expr(&mut self) -> ast::Expr {
         let mut params = Vec::new();
-        while !self.match_ok(lexer::TokenType::Arrow) {
+        while self.pos < self.tokens.len() && !self.match_ok(lexer::TokenType::Arrow) {
+            if self.match_ok(lexer::TokenType::EOF) {
+                break;
+            }
             if self.match_ok(lexer::TokenType::Ident) {
                 params.push(self.cur().v.clone());
                 self.advance();
