@@ -1,6 +1,7 @@
 use crate::interpreter::{ModuleFnPtr, ModuleFuncArgs, Value};
 use phf::phf_map;
 use std::io::Write;
+use crate::objects::{Object, ObjectRef};
 
 #[allow(dead_code, unpredictable_function_pointer_comparisons)]
 pub(crate) static BUILTIN_FUNCTIONS: phf::Map<&str, ModuleFnPtr> = phf_map! {
@@ -37,19 +38,19 @@ fn input(args: ModuleFuncArgs) -> Value {
         panic!("<stdin flush failure>");
     }
     // let input = input.trim_end().to_string();
-    Value::String(input)
+    Value::Object(ObjectRef::new(Object::String { data: input }))
 }
 
 fn type_info(args: ModuleFuncArgs) -> Value {
     if args.args.len() != 1 {
         panic!("<type info failure>, `typeinfo()` only should 1 argument");
     }
-    Value::String(args.args[0].type_info())
+    Value::Object(ObjectRef::new(Object::String { data: args.args[0].type_info() }))
 }
 
 fn to_string(args: ModuleFuncArgs) -> Value {
     if args.args.len() != 1 {
         panic!("<type info failure>, `to_string()` only should 1 argument");
     }
-    Value::String(args.args[0].type_info().to_string())
+    Value::Object(ObjectRef::new(Object::String { data: args.args[0].type_info().to_string() }))
 }

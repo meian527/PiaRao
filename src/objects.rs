@@ -1,17 +1,12 @@
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, Mutex};
 use lazy_static::lazy_static;
 use crate::interpreter::{Function, ModuleFnPtr, Value};
 
 pub type ObjectRef = Arc<Object>;
 
-impl Debug for ObjectRef {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
 #[allow(dead_code)]
+#[derive(Debug)]
 pub enum Object {
     Function {
         func: Function
@@ -25,6 +20,7 @@ pub enum Object {
     }
 }
 
+#[allow(dead_code)]
 pub struct ObjectMetadata {
     pub name: String,
     size: usize,

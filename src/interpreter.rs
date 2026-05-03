@@ -1,11 +1,9 @@
 use crate::ast;
-use crate::objects;
 use crate::objects::{Object, ObjectRef, GLOBAL_OBJECT_METADATA_MAP};
 use dashu_base::{Abs, Signed};
 use dashu_ratio::RBig;
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::sync::Arc;
 
 #[allow(dead_code)]
 #[repr(C)]
@@ -289,7 +287,7 @@ impl Interpreter {
                         .last_mut()
                         .unwrap()
                         .vars
-                        .insert(name.clone(), Value::Object(Arc::new(Object::Function {
+                        .insert(name.clone(), Value::Object(ObjectRef::new(Object::Function {
                             func: func.clone(),
                         })));
                 } else {
@@ -446,7 +444,7 @@ impl Interpreter {
                 }
             }
             ast::Expr::Lambda(params, body) => {
-                self.stack.push(Value::Object(Arc::new(Object::Function {
+                self.stack.push(Value::Object(ObjectRef::new(Object::Function {
                     func: Function {
                         params: params.clone(),
                         body: FunctionImpl::General(body.as_ref().clone()),
@@ -470,7 +468,7 @@ impl Interpreter {
                 }
             }
             ast::Expr::String(s) => {
-                self.stack.push(Value::Object(Arc::new(Object::String { data: s.clone() })));
+                self.stack.push(Value::Object(ObjectRef::new(Object::String { data: s.clone() })));
             }
             _ => unimplemented!(),
         }
@@ -479,84 +477,90 @@ impl Interpreter {
     fn func_call(
         &mut self,
         name: &String,
-        func: Function,
+        func_ref: ObjectRef,
         args: &Vec<ast::Expr>,
         l: usize,
         c: usize,
     ) {
-        match &func.body {
-            FunctionImpl::General(body) => {
-                self.cur_func.reset(func.params, func.body.clone());
-                let name = String::from(name);
-                let func: Option<Function> = Some(self.cur_func.clone());
-                let last_ret_idx: usize = self.pc;
+        if let Object::Function {func} = func_ref.as_ref() {
+            let func = func.clone();
+            match &func.body {
+                FunctionImpl::General(body) => {
+                    self.cur_func.reset(func.params, func.body.clone());
+                    let name = String::from(name);
+                    let func: Option<Function> = Some(self.cur_func.clone());
+                    let last_ret_idx: usize = self.pc;
 
-                let iter = self.cur_func.params.clone();
-                let not_have_reuse_frame = self.sp == self.frames.len() - 1;
-                if not_have_reuse_frame { // 没有可复用的帧
-                    let mut vars = HashMap::new();
-                    for (param, arg) in iter.into_iter().zip(args.into_iter()) {
-                         self.eval_expr(arg, l, c);
+                    let iter = self.cur_func.params.clone();
+                    let not_have_reuse_frame = self.sp == self.frames.len() - 1;
+                    if not_have_reuse_frame { // 没有可复用的帧
+                        let mut vars = HashMap::new();
+                        for (param, arg) in iter.into_iter().zip(args.into_iter()) {
+                            self.eval_expr(arg, l, c);
 
-                        vars.insert(param, self.stack.pop().unwrap());
+                            vars.insert(param, self.stack.pop().unwrap());
+                        }
+                        self.frames.push(FunctionFrame {
+                            name,
+                            vars,
+                            func,
+                            last_ret_idx,
+                        });
+                        self.sp += 1;
+                    } else {
+                        self.sp += 1;
+
+                        for (param, arg) in iter.into_iter().zip(args.into_iter()) {
+                            self.eval_expr(arg, l, c);
+                            let result = self.stack.pop().unwrap();
+                            self.cur_frame_mut().vars.insert(param, result);
+                        }
+                        let cur_frame = self.cur_frame_mut();
+                        cur_frame.name = name;
+                        cur_frame.func = func;
                     }
-                    self.frames.push(FunctionFrame {
-                        name, vars, func, last_ret_idx,
-                    });
-                    self.sp += 1;
-                } else {
-                    self.sp += 1;
 
-                    for (param, arg) in iter.into_iter().zip(args.into_iter()) {
-                        self.eval_expr(arg, l, c);
-                        let result = self.stack.pop().unwrap();
-                        self.cur_frame_mut().vars.insert(param, result);
+                    self.pc = 0;
+
+                    // println!("calling: {}", name);
+                    self.eval_expr(body, l, c);
+
+                    self.pc = self.cur_frame_mut().last_ret_idx;
+                    if not_have_reuse_frame {
+                        self.frames.pop();
                     }
-                    let cur_frame = self.cur_frame_mut();
-                    cur_frame.name = name;
-                    cur_frame.func = func;
+                    self.sp -= 1;
                 }
-
-                self.pc = 0;
-
-                // println!("calling: {}", name);
-                self.eval_expr(body, l, c);
-
-                self.pc = self.cur_frame_mut().last_ret_idx;
-                if not_have_reuse_frame {
-                    self.frames.pop();
-                }
-                self.sp -= 1;
-            }
-            FunctionImpl::Native(ts, ptr) => {
-                let mut calling_args = Vec::new();
-                if ts.len() > 0 && ts[0] != usize::MAX {
-                    //只有一个且为最大，就是不定长参数
-                    for i in (0..=ts.len()).rev() {
-                        if let Some(v) = self.stack.pop() {
-                            if v.type_id() == ts[i] {
-                                calling_args.push(v);
-                            } else {
-                                self.error(
-                                    l,
-                                    c,
-                                    &format!(
-                                        "Type error: expected `{}` but got `{}`",
-                                        Value::type_to_string(ts[i]),
-                                        v.type_info()
-                                    ),
-                                );
+                FunctionImpl::Native(ts, ptr) => {
+                    let mut calling_args = Vec::new();
+                    if ts.len() > 0 && ts[0] != usize::MAX {
+                        //只有一个且为最大，就是不定长参数
+                        for i in (0..=ts.len()).rev() {
+                            if let Some(v) = self.stack.pop() {
+                                if v.type_id() == ts[i] {
+                                    calling_args.push(v);
+                                } else {
+                                    self.error(
+                                        l,
+                                        c,
+                                        &format!(
+                                            "Type error: expected `{}` but got `{}`",
+                                            Value::type_to_string(ts[i]),
+                                            v.type_info()
+                                        ),
+                                    );
+                                }
                             }
                         }
+                    } else {
+                        for arg in args.iter() {
+                            self.eval_expr(arg, l, c);
+                            calling_args.push(self.stack.pop().unwrap());
+                        }
                     }
-                } else {
-                    for arg in args.iter() {
-                        self.eval_expr(arg, l, c);
-                        calling_args.push(self.stack.pop().unwrap());
+                    unsafe {
+                        self.stack.push(ptr(ModuleFuncArgs::new(calling_args)));
                     }
-                }
-                unsafe {
-                    self.stack.push(ptr(ModuleFuncArgs::new(calling_args)));
                 }
             }
         }
@@ -634,10 +638,12 @@ impl Interpreter {
     pub fn new_func(&mut self, name: String, ts: Vec<usize>, func: ModuleFnPtr) {
         self.frames[0].vars.insert(
             name.clone(),
-            Value::Lambda(Function {
-                params: vec!["@".to_string()],
-                body: FunctionImpl::Native(ts, func),
-            }),
+            Value::Object(ObjectRef::new( Object::Function {
+                func: Function {
+                    params: vec!["@".to_string()],
+                    body: FunctionImpl::Native(ts, func),
+                }
+            }))
         );
     }
 
