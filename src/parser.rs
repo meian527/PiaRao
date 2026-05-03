@@ -5,11 +5,15 @@ use crate::lexer;
 pub struct Parser<'a> {
     tokens: &'a Vec<lexer::Token>,
     pos: usize,
-    calling_track: Vec<bool>    // is_func_calling
+    calling_track: Vec<bool>, // is_func_calling
 }
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a Vec<lexer::Token>) -> Self {
-        Self { tokens, pos: 0 , calling_track: Vec::new() }
+        Self {
+            tokens,
+            pos: 0,
+            calling_track: Vec::new(),
+        }
     }
     fn cur(&self) -> &lexer::Token {
         &self.tokens[self.pos]
@@ -384,9 +388,30 @@ impl<'a> Parser<'a> {
                 lhs = ast::Expr::IdentList(params);
             }
             let _ = self.consume(lexer::TokenType::Assign);
-            let rhs = self.parse_expr();
+            let expr_line = self.cur().l;
+            let expr_col = self.cur().c;
+            let mut rhs = self.parse_expr();
+            let mut change_return = false;
+            if let ast::Expr::Block(stmts) = &mut rhs
+                && let Some(node) = stmts.last_mut()
+                && let ast::Stmt::TailReturn(e) = &node.stmt
+            {
+                node.stmt = ast::Stmt::Return(e.clone());
+                change_return = true;
+            }
             ast::Node {
-                stmt: ast::Stmt::Let(Box::new(lhs), Box::new(rhs)),
+                stmt: ast::Stmt::Let(
+                    Box::new(lhs),
+                    Box::new(ast::Node {
+                        l: expr_line,
+                        c: expr_col,
+                        stmt: if change_return {
+                            ast::Stmt::Return(Box::new(rhs))
+                        } else {
+                            ast::Stmt::NotPopValueExpr(Box::new(rhs))
+                        },
+                    }),
+                ),
                 l: line,
                 c: col,
             }

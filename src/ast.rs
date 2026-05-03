@@ -4,7 +4,8 @@ pub enum Stmt {
     TailReturn(Box<Expr>),
     Return(Box<Expr>),
     Expr(Box<Expr>),
-    Let(Box<Expr>, Box<Expr>),
+    NotPopValueExpr(Box<Expr>),
+    Let(Box<Expr>, Box<Node>),
 }
 
 #[derive(Clone, Debug, PartialEq)]

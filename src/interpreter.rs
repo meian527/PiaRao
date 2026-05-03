@@ -1,9 +1,12 @@
 use crate::ast;
-use crate::objects::{Object, ObjectRef, GLOBAL_OBJECT_METADATA_MAP};
+use crate::builtins;
+use crate::objects::{GLOBAL_OBJECT_METADATA_MAP, Object, ObjectRef};
 use dashu_base::{Abs, Signed};
 use dashu_ratio::RBig;
+use std::clone::Clone;
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::string::ToString;
 
 #[allow(dead_code)]
 #[repr(C)]
@@ -40,7 +43,6 @@ impl Display for Value {
     }
 }
 
-
 impl Value {
     #[allow(dead_code)]
     pub fn set(&mut self, new_v: Value) -> Option<&Value> {
@@ -72,8 +74,8 @@ impl Value {
     pub fn type_to_string(id: usize) -> String {
         match id {
             VALUE_NUMBER => "Number".to_string(),
-            VALUE_BOOL   => "Null".to_string(),
-            VALUE_NULL   => "Bool".to_string(),
+            VALUE_BOOL => "Null".to_string(),
+            VALUE_NULL => "Bool".to_string(),
             _ => "Object".to_string(),
         }
     }
@@ -82,8 +84,8 @@ impl Value {
     pub fn type_id(&self) -> usize {
         match self {
             Value::Number(_) => VALUE_NUMBER,
-            Value::Bool(_) =>   VALUE_BOOL,
-            Value::Null =>      VALUE_NULL,
+            Value::Bool(_) => VALUE_BOOL,
+            Value::Null => VALUE_NULL,
             Value::Object(_) => VALUE_OBJECT,
         }
     }
@@ -116,7 +118,7 @@ pub type ModuleFnPtr = unsafe fn(ModuleFuncArgs) -> Value;
 #[allow(dead_code, unpredictable_function_pointer_comparisons)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum FunctionImpl {
-    General(ast::Expr),
+    General(ast::Stmt),
     Native(Vec<usize>, ModuleFnPtr),
 }
 
@@ -137,7 +139,7 @@ impl Function {
 }
 static GLOBAL_MAIN_FUNC: Function = Function {
     params: Vec::new(),
-    body: FunctionImpl::General(ast::Expr::Block(Vec::new())),
+    body: FunctionImpl::Native(vec![], builtins::__pie_rao_main__),
 };
 
 #[allow(dead_code)]
@@ -199,7 +201,7 @@ pub struct Interpreter {
     pc: usize,
     cur_func: Function,
     counter: usize,
-    block_break_points: Vec<(bool, usize, FunctionFrame)>,   // break_point, save_frame
+    block_break_points: Vec<(bool, usize, FunctionFrame)>, // break_point, save_frame
     loop_continue_points: Vec<usize>,
     sp: usize,
 }
@@ -244,22 +246,23 @@ impl Interpreter {
     }
     fn eval_stmt(&mut self, node: &ast::Stmt, l: usize, c: usize) -> () {
         match node {
-            ast::Stmt::TailReturn(expr) => {    // break impl, not only tail return
+            ast::Stmt::TailReturn(expr) => {
+                // break impl, not only tail return
                 if self.block_break_points.is_empty() {
                     self.error(l, c, "Cannot break block, maybe not in block");
                 }
                 let (_, last_pc, frame) = self.block_break_points.pop().unwrap();
-               self.eval_expr(expr.as_ref(), l, c);
+                self.eval_expr(expr.as_ref(), l, c);
                 self.pc = last_pc;
-               self.frames.last_mut().unwrap().reset_to(frame);
+                self.frames.last_mut().unwrap().reset_to(frame);
             }
             ast::Stmt::Return(expr) => {
                 if self.frames.len() == 1 {
                     self.error(l, c, "Cannot return from <main> function");
                 }
                 self.eval_expr(expr.as_ref(), l, c);
-                self.pc = self.frames.last().unwrap().last_ret_idx;
-                self.frames.last_mut().unwrap().reinit();
+                self.pc = self.cur_frame().last_ret_idx;
+                self.cur_frame_mut().reinit();
                 self.sp -= 1;
             }
             ast::Stmt::Expr(expr) => {
@@ -267,29 +270,23 @@ impl Interpreter {
                 let _ = self.stack.pop();
             }
             ast::Stmt::Let(lhs, r) => {
-                if let ast::Expr::Ident(name) = &**lhs {
-                    // var
-                    self.eval_expr(r, l, c);
-                    let val = self.stack.pop().unwrap();
-                    self.frames
-                        .last_mut()
-                        .unwrap()
-                        .vars
-                        .insert(name.clone(), val);
+                if let ast::Expr::Ident(name) = &**lhs && let ast::Stmt::NotPopValueExpr(expr) = &r.stmt{ // var
+                   self.eval_expr(expr.as_ref(), r.l, r.c);
+                   let val = self.stack.pop().unwrap();
+                   self.cur_frame_mut()
+                       .vars
+                       .insert(name.clone(), val);
                 } else if let ast::Expr::IdentList(params) = &**lhs {
                     // func
                     let name = &params[0];
                     let func = Function {
                         params: params[1..].to_vec(),
-                        body: FunctionImpl::General(r.as_ref().clone()),
+                        body: FunctionImpl::General(r.as_ref().stmt.clone()),
                     };
-                    self.frames
-                        .last_mut()
-                        .unwrap()
-                        .vars
-                        .insert(name.clone(), Value::Object(ObjectRef::new(Object::Function {
-                            func: func.clone(),
-                        })));
+                    self.frames.last_mut().unwrap().vars.insert(
+                        name.clone(),
+                        Value::Object(ObjectRef::new(Object::Function { func: func.clone() })),
+                    );
                 } else {
                     self.error(
                         l,
@@ -298,15 +295,20 @@ impl Interpreter {
                     );
                 }
             }
+            ast::Stmt::NotPopValueExpr(expr) => {
+                self.eval_expr(expr.as_ref(), l, c);
+            }
         }
     }
 
     #[allow(dead_code)]
+    #[inline]
     pub fn cur_frame(&self) -> &FunctionFrame {
         &self.frames[self.sp]
     }
 
     #[allow(dead_code)]
+    #[inline]
     pub fn cur_frame_mut(&mut self) -> &mut FunctionFrame {
         &mut self.frames[self.sp]
     }
@@ -444,13 +446,16 @@ impl Interpreter {
                 }
             }
             ast::Expr::Lambda(params, body) => {
-                self.stack.push(Value::Object(ObjectRef::new(Object::Function {
-                    func: Function {
-                        params: params.clone(),
-                        body: FunctionImpl::General(body.as_ref().clone()),
-                    }
-                })));
-            },
+                self.stack
+                    .push(Value::Object(ObjectRef::new(Object::Function {
+                        func: Function {
+                            params: params.clone(),
+                            body: FunctionImpl::General(ast::Stmt::Expr(Box::new(
+                                body.as_ref().clone(),
+                            ))),
+                        },
+                    })));
+            }
             ast::Expr::DynCall(func, args) => {
                 self.eval_expr(func, l, c);
                 if let Some(f) = self.stack.pop() {
@@ -468,7 +473,10 @@ impl Interpreter {
                 }
             }
             ast::Expr::String(s) => {
-                self.stack.push(Value::Object(ObjectRef::new(Object::String { data: s.clone() })));
+                self.stack
+                    .push(Value::Object(ObjectRef::new(Object::String {
+                        data: s.clone(),
+                    })));
             }
             _ => unimplemented!(),
         }
@@ -482,7 +490,7 @@ impl Interpreter {
         l: usize,
         c: usize,
     ) {
-        if let Object::Function {func} = func_ref.as_ref() {
+        if let Object::Function { func } = func_ref.as_ref() {
             let func = func.clone();
             match &func.body {
                 FunctionImpl::General(body) => {
@@ -493,7 +501,8 @@ impl Interpreter {
 
                     let iter = self.cur_func.params.clone();
                     let not_have_reuse_frame = self.sp == self.frames.len() - 1;
-                    if not_have_reuse_frame { // 没有可复用的帧
+                    if not_have_reuse_frame {
+                        // 没有可复用的帧
                         let mut vars = HashMap::new();
                         for (param, arg) in iter.into_iter().zip(args.into_iter()) {
                             self.eval_expr(arg, l, c);
@@ -523,7 +532,7 @@ impl Interpreter {
                     self.pc = 0;
 
                     // println!("calling: {}", name);
-                    self.eval_expr(body, l, c);
+                    self.eval_stmt(body, l, c);
 
                     self.pc = self.cur_frame_mut().last_ret_idx;
                     if not_have_reuse_frame {
@@ -576,6 +585,7 @@ impl Interpreter {
     }
 
     #[allow(dead_code)]
+    #[inline]
     pub fn find_var(&mut self, name: &str) -> Option<&Value> {
         for v in self.cur_frame().vars.iter() {
             if v.0 == name {
@@ -638,12 +648,12 @@ impl Interpreter {
     pub fn new_func(&mut self, name: String, ts: Vec<usize>, func: ModuleFnPtr) {
         self.frames[0].vars.insert(
             name.clone(),
-            Value::Object(ObjectRef::new( Object::Function {
+            Value::Object(ObjectRef::new(Object::Function {
                 func: Function {
                     params: vec!["@".to_string()],
                     body: FunctionImpl::Native(ts, func),
-                }
-            }))
+                },
+            })),
         );
     }
 

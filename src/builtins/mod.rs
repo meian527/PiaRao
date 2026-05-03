@@ -1,7 +1,7 @@
 use crate::interpreter::{ModuleFnPtr, ModuleFuncArgs, Value};
+use crate::objects::{Object, ObjectRef};
 use phf::phf_map;
 use std::io::Write;
-use crate::objects::{Object, ObjectRef};
 
 #[allow(dead_code, unpredictable_function_pointer_comparisons)]
 pub(crate) static BUILTIN_FUNCTIONS: phf::Map<&str, ModuleFnPtr> = phf_map! {
@@ -10,6 +10,7 @@ pub(crate) static BUILTIN_FUNCTIONS: phf::Map<&str, ModuleFnPtr> = phf_map! {
     "input" => input,
     "type_info" => type_info,
     "to_string" => to_string,
+    "__pie_rao_main__" => __pie_rao_main__,
 };
 
 fn print(args: ModuleFuncArgs) -> Value {
@@ -45,12 +46,25 @@ fn type_info(args: ModuleFuncArgs) -> Value {
     if args.args.len() != 1 {
         panic!("<type info failure>, `typeinfo()` only should 1 argument");
     }
-    Value::Object(ObjectRef::new(Object::String { data: args.args[0].type_info() }))
+    Value::Object(ObjectRef::new(Object::String {
+        data: args.args[0].type_info(),
+    }))
 }
 
 fn to_string(args: ModuleFuncArgs) -> Value {
     if args.args.len() != 1 {
         panic!("<type info failure>, `to_string()` only should 1 argument");
     }
-    Value::Object(ObjectRef::new(Object::String { data: args.args[0].type_info().to_string() }))
+    Value::Object(ObjectRef::new(Object::String {
+        data: args.args[0].type_info().to_string(),
+    }))
+}
+
+pub fn __pie_rao_main__(_: ModuleFuncArgs) -> Value {
+    println(ModuleFuncArgs::new(vec![
+        (Value::Object(ObjectRef::new(Object::String {
+            data: "<main>".to_string(),
+        }))),
+    ])); // println "<main>";
+    Value::Null
 }

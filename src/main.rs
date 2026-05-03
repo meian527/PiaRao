@@ -3,8 +3,8 @@ mod builtins;
 mod interpreter;
 mod lang;
 mod lexer;
-mod parser;
 mod objects;
+mod parser;
 
 use std::time::Instant;
 
