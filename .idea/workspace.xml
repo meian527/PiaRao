@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="ALL" />
+  </component>
+  <component name="CargoProjects">
+    <cargoProject FILE="$PROJECT_DIR$/Cargo.toml">
+      <package file="$PROJECT_DIR$">
+        <feature name="default" enabled="true" />
+      </package>
+    </cargoProject>
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="848133aa-9e2a-4d65-a97c-bbcd0c1207a1" name="更改" comment="0" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="20" />
+  </component>
+  <component name="ExecutionTargetManager" SELECTED_TARGET="RsBuildProfile:dev" />
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Rust File" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;meian527&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/meian527/PiaRao.git",
+    "accountId": "8a55867f-3207-4feb-a897-5b0ba4fbc6c6"
+  }
+}]]></component>
+  <component name="MacroExpansionManager">
+    <option name="directoryName" value="lsSrtpcg" />
+  </component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="ProjectErrors" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 2,
+  &quot;fromUser&quot;: false
+}</component>
+  <component name="ProjectId" id="3D9GmrJvdFzldJd6ZN3GU7gvfMy" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Cargo.Build `Run lab-fp-lang`.executor": "Run",
+    "Cargo.Run lab-fp-lang.executor": "Run",
+    "Cargo.Run.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.rust.reset.selective.auto.import": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "main",
+    "junie.onboarding.icon.badge.shown": "true",
+    "last_opened_file_path": "/home/meian/文档/piarao",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
+    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
+    "org.rust.first.attach.projects": "true",
+    "settings.editor.selected.configurable": "ml.llm.AcpAgentsConfigurable",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RunManager">
+    <configuration name="Run" type="CargoCommandRunConfiguration" factoryName="Cargo Command" nameIsGenerated="true">
+      <option name="buildProfileId" value="dev" />
+      <option name="command" value="run" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+  </component>
+  <component name="RustProjectSettings">
+    <option name="toolchainHomeDirectory" value="/usr/bin" />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="默认任务">
+      <changelist id="848133aa-9e2a-4d65-a97c-bbcd0c1207a1" name="更改" comment="" />
+      <created>1777687034194</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1777687034194</updated>
+      <workItem from="1777687035973" duration="14999000" />
+      <workItem from="1777708695398" duration="791000" />
+      <workItem from="1777712035175" duration="5785000" />
+      <workItem from="1777725865367" duration="9039000" />
+      <workItem from="1777735935836" duration="1004000" />
+      <workItem from="1777766809713" duration="11117000" />
+      <workItem from="1777796238777" duration="8839000" />
+      <workItem from="1777810395432" duration="1349000" />
+    </task>
+    <task id="LOCAL-00001" summary="first upload, basic expr and let stmt">
+      <option name="closed" value="true" />
+      <created>1777687205207</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1777687205207</updated>
+    </task>
+    <task id="LOCAL-00002" summary="first upload, basic expr and let stmt">
+      <option name="closed" value="true" />
+      <created>1777702285910</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1777702285911</updated>
+    </task>
+    <task id="LOCAL-00003" summary="lambda expr and just call syntax">
+      <option name="closed" value="true" />
+      <created>1777715975409</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1777715975409</updated>
+    </task>
+    <task id="LOCAL-00004" summary="lambda expr and just call syntax">
+      <option name="closed" value="true" />
+      <created>1777716288845</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1777716288845</updated>
+    </task>
+    <task id="LOCAL-00005" summary="please try not to use block expr {expr} , maybe stack overflow">
+      <option name="closed" value="true" />
+      <created>1777727724462</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1777727724462</updated>
+    </task>
+    <task id="LOCAL-00006" summary="call rust-implemented function">
+      <option name="closed" value="true" />
+      <created>1777733949220</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1777733949220</updated>
+    </task>
+    <task id="LOCAL-00007" summary="call rust-implemented function">
+      <option name="closed" value="true" />
+      <created>1777734339215</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1777734339215</updated>
+    </task>
+    <task id="LOCAL-00008" summary="more builtins">
+      <option name="closed" value="true" />
+      <created>1777736937802</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1777736937802</updated>
+    </task>
+    <task id="LOCAL-00009" summary="fix not found ')' program not stop bug">
+      <option name="closed" value="true" />
+      <created>1777767238021</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1777767238021</updated>
+    </task>
+    <task id="LOCAL-00010" summary="can write object system">
+      <option name="closed" value="true" />
+      <created>1777777927104</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1777777927104</updated>
+    </task>
+    <task id="LOCAL-00011" summary="object system">
+      <option name="closed" value="true" />
+      <created>1777796964068</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1777796964068</updated>
+    </task>
+    <task id="LOCAL-00012" summary="object system">
+      <option name="closed" value="true" />
+      <created>1777797139400</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1777797139400</updated>
+    </task>
+    <task id="LOCAL-00013" summary="fix return do not get value bug">
+      <option name="closed" value="true" />
+      <created>1777809839944</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1777809839944</updated>
+    </task>
+    <task id="LOCAL-00014" summary="0">
+      <option name="closed" value="true" />
+      <created>1777811212508</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1777811212508</updated>
+    </task>
+    <task id="LOCAL-00015" summary="0">
+      <option name="closed" value="true" />
+      <created>1777811353729</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1777811353729</updated>
+    </task>
+    <option name="localTasksCounter" value="16" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="first upload, basic expr and let stmt" />
+    <MESSAGE value="lambda expr and just call syntax" />
+    <MESSAGE value="please try not to use block expr {expr} , maybe stack overflow" />
+    <MESSAGE value="call rust-implemented function" />
+    <MESSAGE value="more builtins" />
+    <MESSAGE value="fix not found ')' program not stop bug" />
+    <MESSAGE value="can write object system" />
+    <MESSAGE value="object system" />
+    <MESSAGE value="fix return do not get value bug" />
+    <MESSAGE value="0" />
+    <option name="LAST_COMMIT_MESSAGE" value="0" />
+  </component>
+  <component name="XSLT-Support.FileAssociations.UIState">
+    <expand />
+    <select />
+  </component>
+</project>

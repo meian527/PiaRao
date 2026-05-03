@@ -38,7 +38,7 @@ impl Display for Value {
             Value::Number(n) => write!(f, "{}", Interpreter::rbig_to_float_str(n, 10)),
             Value::Bool(b) => write!(f, "{}", b),
             Value::Null => write!(f, "Null"),
-            Value::Object(obj) => write!(f, "Object<address:{:p}>", obj as *const _),
+            Value::Object(obj) => write!(f, "{}", obj),
         }
     }
 }

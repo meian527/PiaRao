@@ -1,6 +1,7 @@
 use crate::interpreter::{Function, ModuleFnPtr, Value};
 use lazy_static::lazy_static;
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 pub type ObjectRef = Arc<Object>;
@@ -11,6 +12,15 @@ pub enum Object {
     Function { func: Function },
     String { data: String },
     Class { id: usize, members: Box<[Value]> },
+}
+
+impl Display for Object {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Object::String { data } => write!(f, "{}", data),
+            _ => write!(f, "Object<address:{:p}>", self as *const _),
+        }
+    }
 }
 
 #[allow(dead_code)]

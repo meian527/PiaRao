@@ -23,6 +23,7 @@ fn main() {
         r#"
         let fib n = if n <= 1 then n else fib(n - 1) + fib(n - 2);
         let result = fib 30;
+        println "Yes";
         "#,
     );
     let mut lang_state = lang::LangState::new(&src);

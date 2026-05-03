@@ -236,6 +236,9 @@ impl<'a> Parser<'a> {
             || tk.t == lexer::TokenType::LBrace
             || tk.t == lexer::TokenType::OpUnarySub
             || tk.t == lexer::TokenType::OpUnaryNot
+            || tk.t == lexer::TokenType::StringLiteral
+            || tk.t == lexer::TokenType::KWIf
+            || tk.t == lexer::TokenType::KWFn
     }
     fn parse_primary(&mut self) -> ast::Expr {
         if self.match_ok(lexer::TokenType::Digit) {
