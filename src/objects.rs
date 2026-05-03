@@ -33,3 +33,9 @@ lazy_static! {
         ObjectMetadata { name: "String".to_string(), size: size_of::<Object>(),  member_funcs: HashMap::new() },  
     ]);
 }
+
+pub fn new_class_decl(name: String, members: HashMap<String, ModuleFnPtr>) {
+    GLOBAL_OBJECT_METADATA_MAP.lock().unwrap().push( ObjectMetadata {
+        name, size: members.len(), member_funcs: members
+    })
+}
