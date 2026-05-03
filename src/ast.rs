@@ -2,6 +2,7 @@
 #[allow(dead_code)]
 pub enum Stmt {
     TailReturn(Box<Expr>),
+    Return(Box<Expr>),
     Expr(Box<Expr>),
     Let(Box<Expr>, Box<Expr>),
 }

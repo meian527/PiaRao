@@ -1,13 +1,15 @@
 use crate::ast;
 use crate::lexer;
 
+#[allow(dead_code)]
 pub struct Parser<'a> {
     tokens: &'a Vec<lexer::Token>,
     pos: usize,
+    calling_track: Vec<bool>    // is_func_calling
 }
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a Vec<lexer::Token>) -> Self {
-        Self { tokens, pos: 0 }
+        Self { tokens, pos: 0 , calling_track: Vec::new() }
     }
     fn cur(&self) -> &lexer::Token {
         &self.tokens[self.pos]
@@ -181,6 +183,7 @@ impl<'a> Parser<'a> {
                     self.consume(lexer::TokenType::Comma);
                 }
                 self.consume(lexer::TokenType::RParen);
+                self.calling_track.push(true);
                 ast::Expr::Call(name, args)
             } else if self.is_primary_start() && !self.match_ok(lexer::TokenType::EOF) {
                 // 无括号的函数调用
@@ -188,6 +191,7 @@ impl<'a> Parser<'a> {
                 while self.is_primary_start() {
                     args.push(self.parse_primary());
                 }
+                self.calling_track.push(true);
                 ast::Expr::Call(name, args)
             } else {
                 ast::Expr::Ident(name)
@@ -265,6 +269,7 @@ impl<'a> Parser<'a> {
         } else if self.match_ok(lexer::TokenType::LBrace) {
             self.advance();
             let mut stmts = Vec::new();
+            self.calling_track.push(false);
             while self.pos < self.tokens.len() && !self.match_ok(lexer::TokenType::RBrace) {
                 if self.match_ok(lexer::TokenType::EOF) {
                     break;
@@ -280,6 +285,7 @@ impl<'a> Parser<'a> {
                     };
                 }
             }
+            self.calling_track.pop();
             self.consume(lexer::TokenType::RBrace);
             ast::Expr::Block(stmts)
         } else if self.match_ok(lexer::TokenType::SemiColon) || self.match_ok(lexer::TokenType::EOF)

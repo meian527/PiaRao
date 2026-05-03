@@ -1,50 +1,54 @@
 use crate::ast;
+use crate::objects;
+use crate::objects::{Object, ObjectRef, GLOBAL_OBJECT_METADATA_MAP};
 use dashu_base::{Abs, Signed};
 use dashu_ratio::RBig;
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::sync::Arc;
 
-#[derive(Clone, Debug, PartialEq)]
 #[allow(dead_code)]
 #[repr(C)]
+#[derive(Debug)]
 pub enum Value {
     Number(RBig),
-    String(String),
-    Lambda(Function),
+    Object(ObjectRef),
     Null,
     Bool(bool),
+}
+const VALUE_NUMBER: usize = 0;
+const VALUE_OBJECT: usize = 1;
+const VALUE_NULL: usize = 2;
+const VALUE_BOOL: usize = 3;
+impl Clone for Value {
+    fn clone(&self) -> Value {
+        match self {
+            Value::Object(obj) => Value::Object(obj.clone()),
+            Value::Number(num) => Value::Number(num.clone()),
+            Value::Bool(bool) => Value::Bool(*bool),
+            Value::Null => Value::Null,
+        }
+    }
 }
 
 impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Number(n) => write!(f, "{}", Interpreter::rbig_to_float_str(n, 10)),
-            Value::String(s) => write!(f, "{}", s),
             Value::Bool(b) => write!(f, "{}", b),
-            Value::Lambda(func) => write!(f, "Lambda<address:{:p}>", func as *const _),
             Value::Null => write!(f, "Null"),
+            Value::Object(obj) => write!(f, "Object<address:{:p}>", obj as *const _),
         }
     }
 }
 
-#[allow(dead_code)]
-const VALUE_NUMBER: usize = 0;
-#[allow(dead_code)]
-const VALUE_STRING: usize = 1;
-#[allow(dead_code)]
-const VALUE_LAMBDA: usize = 2;
-#[allow(dead_code)]
-const VALUE_NULL: usize = 3;
-#[allow(dead_code)]
-const VALUE_BOOL: usize = 4;
+
 impl Value {
     #[allow(dead_code)]
     pub fn set(&mut self, new_v: Value) -> Option<&Value> {
         match (self, new_v) {
             (Value::Number(x), Value::Number(y)) => *x = y.clone(),
-            (Value::Lambda(x), Value::Lambda(y)) => *x = y.clone(),
             (Value::Bool(x), Value::Bool(y)) => *x = y.clone(),
-            (Value::String(x), Value::String(y)) => *x = y.clone(),
             _ => return None,
         }
         None
@@ -52,32 +56,27 @@ impl Value {
     pub fn type_info(&self) -> String {
         match self {
             Value::Number(_) => "Number".to_string(),
-            Value::String(_) => "String".to_string(),
-            Value::Lambda(_) => "Lambda".to_string(),
             Value::Bool(_) => "Bool".to_string(),
-            _ => "Null".to_string(),
+            Value::Null => "Null".to_string(),
+            Value::Object(_) => "Object".to_string(),
         }
     }
 
     #[allow(dead_code)]
     pub fn string_to_type(s: &str) -> usize {
-        match s {
-            "Number" => VALUE_NUMBER,
-            "String" => VALUE_STRING,
-            "Lambda" => VALUE_LAMBDA,
-            "Bool" => VALUE_BOOL,
-            "Null" => VALUE_NULL,
-            &_ => usize::MAX,
+        for i in 0..GLOBAL_OBJECT_METADATA_MAP.lock().unwrap().len() {
+            if GLOBAL_OBJECT_METADATA_MAP.lock().unwrap()[i].name == s {
+                return i;
+            }
         }
+        usize::MAX
     }
     pub fn type_to_string(id: usize) -> String {
         match id {
             VALUE_NUMBER => "Number".to_string(),
-            VALUE_STRING => "String".to_string(),
-            VALUE_LAMBDA => "Lambda".to_string(),
-            VALUE_NULL => "Null".to_string(),
-            VALUE_BOOL => "Bool".to_string(),
-            _ => "<Unknown>".to_string(),
+            VALUE_BOOL   => "Null".to_string(),
+            VALUE_NULL   => "Bool".to_string(),
+            _ => "Object".to_string(),
         }
     }
 
@@ -85,10 +84,9 @@ impl Value {
     pub fn type_id(&self) -> usize {
         match self {
             Value::Number(_) => VALUE_NUMBER,
-            Value::String(_) => VALUE_STRING,
-            Value::Lambda(_) => VALUE_LAMBDA,
-            Value::Bool(_) => VALUE_BOOL,
-            Value::Null => VALUE_NULL,
+            Value::Bool(_) =>   VALUE_BOOL,
+            Value::Null =>      VALUE_NULL,
+            Value::Object(_) => VALUE_OBJECT,
         }
     }
 }
@@ -173,6 +171,19 @@ impl FunctionFrame {
         self.func = other.func;
         self.last_ret_idx = other.last_ret_idx;
     }
+
+    #[allow(dead_code)]
+    pub fn reset_vars(&mut self, vars: HashMap<String, Value>) {
+        self.vars = vars;
+    }
+
+    #[allow(dead_code)]
+    pub fn reinit(&mut self) {
+        self.last_ret_idx = 0;
+        self.func = None;
+        self.vars.clear();
+        self.name.clear();
+    }
 }
 
 #[allow(dead_code)]
@@ -190,6 +201,9 @@ pub struct Interpreter {
     pc: usize,
     cur_func: Function,
     counter: usize,
+    block_break_points: Vec<(bool, usize, FunctionFrame)>,   // break_point, save_frame
+    loop_continue_points: Vec<usize>,
+    sp: usize,
 }
 impl Interpreter {
     pub fn new(prog: ast::Program) -> Self {
@@ -210,6 +224,9 @@ impl Interpreter {
             cur_func: GLOBAL_MAIN_FUNC.clone(),
             counter: 0,
             loaded_modules: HashMap::new(),
+            block_break_points: Vec::new(),
+            loop_continue_points: Vec::new(),
+            sp: 0,
         }
     }
     pub fn interpret(&mut self) {
@@ -229,17 +246,27 @@ impl Interpreter {
     }
     fn eval_stmt(&mut self, node: &ast::Stmt, l: usize, c: usize) -> () {
         match node {
-            ast::Stmt::TailReturn(expr) => {
+            ast::Stmt::TailReturn(expr) => {    // break impl, not only tail return
+                if self.block_break_points.is_empty() {
+                    self.error(l, c, "Cannot break block, maybe not in block");
+                }
+                let (_, last_pc, frame) = self.block_break_points.pop().unwrap();
+               self.eval_expr(expr.as_ref(), l, c);
+                self.pc = last_pc;
+               self.frames.last_mut().unwrap().reset_to(frame);
+            }
+            ast::Stmt::Return(expr) => {
                 if self.frames.len() == 1 {
                     self.error(l, c, "Cannot return from <main> function");
                 }
                 self.eval_expr(expr.as_ref(), l, c);
                 self.pc = self.frames.last().unwrap().last_ret_idx;
-                self.frames.pop();
+                self.frames.last_mut().unwrap().reinit();
+                self.sp -= 1;
             }
             ast::Stmt::Expr(expr) => {
                 self.eval_expr(expr.as_ref(), l, c);
-                self.stack.pop();
+                let _ = self.stack.pop();
             }
             ast::Stmt::Let(lhs, r) => {
                 if let ast::Expr::Ident(name) = &**lhs {
@@ -262,7 +289,9 @@ impl Interpreter {
                         .last_mut()
                         .unwrap()
                         .vars
-                        .insert(name.clone(), Value::Lambda(func.clone()));
+                        .insert(name.clone(), Value::Object(Arc::new(Object::Function {
+                            func: func.clone(),
+                        })));
                 } else {
                     self.error(
                         l,
@@ -272,6 +301,16 @@ impl Interpreter {
                 }
             }
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn cur_frame(&self) -> &FunctionFrame {
+        &self.frames[self.sp]
+    }
+
+    #[allow(dead_code)]
+    pub fn cur_frame_mut(&mut self) -> &mut FunctionFrame {
+        &mut self.frames[self.sp]
     }
 
     fn parse_float_string(s: &str) -> RBig {
@@ -356,7 +395,7 @@ impl Interpreter {
                 };
             }
             ast::Expr::Call(name, args) => {
-                if let Some(Value::Lambda(func)) = self.find_var(name).cloned() {
+                if let Some(Value::Object(func)) = self.find_var(name).cloned() {
                     self.func_call(name, func, args, l, c);
                 } else {
                     self.error(l, c, &format!("Undefined function '{}'", name));
@@ -407,15 +446,17 @@ impl Interpreter {
                 }
             }
             ast::Expr::Lambda(params, body) => {
-                self.stack.push(Value::Lambda(Function {
-                    params: params.clone(),
-                    body: FunctionImpl::General(body.as_ref().clone()),
-                }));
-            }
+                self.stack.push(Value::Object(Arc::new(Object::Function {
+                    func: Function {
+                        params: params.clone(),
+                        body: FunctionImpl::General(body.as_ref().clone()),
+                    }
+                })));
+            },
             ast::Expr::DynCall(func, args) => {
                 self.eval_expr(func, l, c);
                 if let Some(f) = self.stack.pop() {
-                    if let Value::Lambda(func) = f {
+                    if let Value::Object(func) = f {
                         self.func_call(&format!("Lambda<{}>", self.counter), func, args, l, c);
                     } else {
                         self.error(
@@ -429,7 +470,7 @@ impl Interpreter {
                 }
             }
             ast::Expr::String(s) => {
-                self.stack.push(Value::String(s.clone()));
+                self.stack.push(Value::Object(Arc::new(Object::String { data: s.clone() })));
             }
             _ => unimplemented!(),
         }
@@ -446,30 +487,50 @@ impl Interpreter {
         match &func.body {
             FunctionImpl::General(body) => {
                 self.cur_func.reset(func.params, func.body.clone());
-                let mut vars = HashMap::new();
+                let name = String::from(name);
+                let func: Option<Function> = Some(self.cur_func.clone());
+                let last_ret_idx: usize = self.pc;
+
                 let iter = self.cur_func.params.clone();
-                for (param, arg) in iter.into_iter().zip(args.into_iter()) {
-                    self.eval_expr(arg, l, c);
-                    vars.insert(param, self.stack.pop().unwrap());
+                let not_have_reuse_frame = self.sp == self.frames.len() - 1;
+                if not_have_reuse_frame { // 没有可复用的帧
+                    let mut vars = HashMap::new();
+                    for (param, arg) in iter.into_iter().zip(args.into_iter()) {
+                         self.eval_expr(arg, l, c);
+
+                        vars.insert(param, self.stack.pop().unwrap());
+                    }
+                    self.frames.push(FunctionFrame {
+                        name, vars, func, last_ret_idx,
+                    });
+                    self.sp += 1;
+                } else {
+                    self.sp += 1;
+
+                    for (param, arg) in iter.into_iter().zip(args.into_iter()) {
+                        self.eval_expr(arg, l, c);
+                        let result = self.stack.pop().unwrap();
+                        self.cur_frame_mut().vars.insert(param, result);
+                    }
+                    let cur_frame = self.cur_frame_mut();
+                    cur_frame.name = name;
+                    cur_frame.func = func;
                 }
-                self.frames.push(FunctionFrame {
-                    name: name.clone(),
-                    vars,
-                    func: Some(self.cur_func.clone()),
-                    last_ret_idx: self.pc,
-                });
-                let last_pc = self.pc;
+
                 self.pc = 0;
 
                 // println!("calling: {}", name);
                 self.eval_expr(body, l, c);
 
-                self.pc = last_pc;
-                self.frames.pop();
+                self.pc = self.cur_frame_mut().last_ret_idx;
+                if not_have_reuse_frame {
+                    self.frames.pop();
+                }
+                self.sp -= 1;
             }
             FunctionImpl::Native(ts, ptr) => {
-                let mut calling_args = Vec::<Value>::new();
-                if ts.len() > 1 && ts[0] != usize::MAX {
+                let mut calling_args = Vec::new();
+                if ts.len() > 0 && ts[0] != usize::MAX {
                     //只有一个且为最大，就是不定长参数
                     for i in (0..=ts.len()).rev() {
                         if let Some(v) = self.stack.pop() {
@@ -512,7 +573,7 @@ impl Interpreter {
 
     #[allow(dead_code)]
     pub fn find_var(&mut self, name: &str) -> Option<&Value> {
-        for v in self.frames.last().unwrap().vars.iter() {
+        for v in self.cur_frame().vars.iter() {
             if v.0 == name {
                 return Some(v.1);
             }
