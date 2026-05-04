@@ -1,3 +1,5 @@
+pub mod metadata;
+
 use crate::interpreter::{ModuleFnPtr, ModuleFuncArgs, Value};
 use crate::objects::{Object, ObjectRef};
 use phf::phf_map;

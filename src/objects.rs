@@ -1,8 +1,7 @@
-use crate::interpreter::{Function, ModuleFnPtr, Value};
-use lazy_static::lazy_static;
+use crate::interpreter::{Function, Interpreter, Value};
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 pub type ObjectRef = Arc<Object>;
 
@@ -11,7 +10,31 @@ pub type ObjectRef = Arc<Object>;
 pub enum Object {
     Function { func: Function },
     String { data: String },
-    Class { id: usize, members: Box<[Value]> },
+    Record { id: usize, members: Box<[Value]> },
+}
+
+impl Object {
+    #[allow(dead_code)]
+    pub fn virtual_get_func<'a>(
+        &self,
+        name: &str,
+        interp: &'a Interpreter,
+    ) -> Option<&'a ObjectRef> {
+        let id = match self {
+            Object::Function { func: _ } => 0usize,
+            Object::String { data: _ } => 0usize,
+            Object::Record { id, members: _ } => *id,
+        };
+        interp.get_record_metadata()[id].member_funcs.get(name)
+    }
+
+    pub fn record_get_member_idx(id: usize, name: &str, interp: &Interpreter) -> Option<usize> {
+        if let Some(members) = &interp.get_record_metadata()[id].members {
+            members.get(name).cloned()
+        } else {
+            None
+        }
+    }
 }
 
 impl Display for Object {
@@ -24,57 +47,20 @@ impl Display for Object {
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct ObjectMetadata {
     pub name: String,
-    size: usize,
-    member_funcs: HashMap<String, ModuleFnPtr>,
-    members: Option<HashMap<String, usize>>,
-}
-
-lazy_static! {
-    pub static ref GLOBAL_OBJECT_METADATA_MAP: Mutex<Vec<ObjectMetadata>> = Mutex::new(vec![
-        ObjectMetadata {
-            name: "Function".to_string(),
-            size: size_of::<Object>(),
-            member_funcs: HashMap::new(),
-            members: None
-        },
-        ObjectMetadata {
-            name: "String".to_string(),
-            size: size_of::<Object>(),
-            member_funcs: HashMap::new(),
-            members: None
-        },
-    ]);
+    pub size: usize,
+    pub member_funcs: HashMap<String, ObjectRef>,
+    pub members: Option<HashMap<String, usize>>,
 }
 
 #[allow(dead_code)]
-pub fn new_class_decl(
-    name: String,
-    member_funcs: HashMap<String, ModuleFnPtr>,
-    members: Option<HashMap<String, usize>>,
-) {
-    GLOBAL_OBJECT_METADATA_MAP
-        .lock()
-        .unwrap()
-        .push(ObjectMetadata {
-            name,
-            size: if let Some(members) = &members {
-                members.len()
-            } else {
-                0
-            },
-            member_funcs,
-            members,
-        })
-}
-
-#[allow(dead_code)]
-pub fn new_class(id: usize) -> Option<ObjectRef> {
-    let class = &GLOBAL_OBJECT_METADATA_MAP.lock().unwrap();
-    if class.len() < id {
-        let meta = &class[id];
-        Some(ObjectRef::new(Object::Class {
+pub fn new_record(id: usize, interp: &Interpreter) -> Option<ObjectRef> {
+    let record = interp.get_record_metadata();
+    if record.len() < id {
+        let meta = &record[id];
+        Some(ObjectRef::new(Object::Record {
             id,
             members: vec![Value::Null; meta.size].into_boxed_slice(),
         }))

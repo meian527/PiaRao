@@ -1,12 +1,12 @@
 use crate::ast;
 use crate::builtins;
-use crate::objects::{GLOBAL_OBJECT_METADATA_MAP, Object, ObjectRef};
+use crate::objects::{Object, ObjectMetadata, ObjectRef};
 use rug;
+use rug::ops::Pow;
 use std::clone::Clone;
 use std::collections::HashMap;
-use std::fmt::{Display};
+use std::fmt::Display;
 use std::string::ToString;
-use rug::ops::Pow;
 
 type NumberImpl = rug::Rational;
 #[allow(dead_code)]
@@ -64,14 +64,6 @@ impl Value {
     }
 
     #[allow(dead_code)]
-    pub fn string_to_type(s: &str) -> usize {
-        for i in 0..GLOBAL_OBJECT_METADATA_MAP.lock().unwrap().len() {
-            if GLOBAL_OBJECT_METADATA_MAP.lock().unwrap()[i].name == s {
-                return i;
-            }
-        }
-        usize::MAX
-    }
     pub fn type_to_string(id: usize) -> String {
         match id {
             VALUE_NUMBER => "Number".to_string(),
@@ -120,13 +112,13 @@ pub type ModuleFnPtr = unsafe fn(ModuleFuncArgs) -> Value;
 #[derive(Clone, Debug, PartialEq)]
 pub enum FunctionImpl {
     General(ast::Stmt),
-    Native(Vec<usize>, ModuleFnPtr),
+    Native(ModuleFnPtr),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Function {
-    params: Vec<String>,
-    body: FunctionImpl,
+    pub(crate) params: Vec<String>,
+    pub(crate) body: FunctionImpl,
 }
 impl Function {
     #[allow(dead_code)]
@@ -140,7 +132,7 @@ impl Function {
 }
 static GLOBAL_MAIN_FUNC: Function = Function {
     params: Vec::new(),
-    body: FunctionImpl::Native(vec![], builtins::__pie_rao_main__),
+    body: FunctionImpl::Native(builtins::__pie_rao_main__),
 };
 
 #[allow(dead_code)]
@@ -205,6 +197,7 @@ pub struct Interpreter {
     block_break_points: Vec<(bool, usize, FunctionFrame)>, // break_point, save_frame
     loop_continue_points: Vec<usize>,
     sp: usize,
+    record_metadata: Vec<ObjectMetadata>,
 }
 impl Interpreter {
     pub fn new(prog: ast::Program) -> Self {
@@ -228,6 +221,7 @@ impl Interpreter {
             block_break_points: Vec::new(),
             loop_continue_points: Vec::new(),
             sp: 0,
+            record_metadata: builtins::metadata::get_builtin_metadata(),
         }
     }
     pub fn interpret(&mut self) {
@@ -320,12 +314,11 @@ impl Interpreter {
         let int_part = parts.next().unwrap();
         let frac_part = parts.next().unwrap_or("");
 
-        NumberImpl::from(
-            int_part.parse::<i64>().unwrap()) + NumberImpl::from((
+        NumberImpl::from(int_part.parse::<i64>().unwrap())
+            + NumberImpl::from((
                 frac_part.parse::<i64>().unwrap(),
                 10_i64.pow(frac_part.len() as u32),
-            )
-        )
+            ))
     }
     fn eval_expr(&mut self, expr: &ast::Expr, l: usize, c: usize) -> () {
         match expr {
@@ -352,15 +345,15 @@ impl Interpreter {
                                 "%" => self.stack.push(Value::Number(NumberImpl::from(r / ln))),
                                 "^" => {
                                     let exp = if ln <= &i32::MAX {
-                                        rug::Integer::from(ln.numer() / ln.denom()).to_i32().unwrap()
+                                        rug::Integer::from(ln.numer() / ln.denom())
+                                            .to_i32()
+                                            .unwrap()
                                     } else {
                                         self.error(l, c, &format!("`base ^ exp` exp so big(Max is int32::max but exp = {})", ln));
                                         0
                                     };
-                                    self
-                                        .stack
-                                        .push(Value::Number(NumberImpl::from(r.pow(exp))))
-                                },
+                                    self.stack.push(Value::Number(NumberImpl::from(r.pow(exp))))
+                                }
                                 "==" => self.stack.push(Value::Bool(r == ln)),
                                 "!=" => self.stack.push(Value::Bool(r != ln)),
                                 ">" => self.stack.push(Value::Bool(r > ln)),
@@ -419,7 +412,7 @@ impl Interpreter {
                     Value::Bool(b) => match op.as_str() {
                         "!" => self.stack.push(Value::Bool(!b)),
                         _ => self.error(l, c, &format!("Unknown unary operator '{}'", op)),
-                    }
+                    },
 
                     _ => self.error(
                         l,
@@ -486,7 +479,140 @@ impl Interpreter {
                         data: s.clone(),
                     })));
             }
+            ast::Expr::Dot(left, right) => {
+                self.eval_expr(left, l, c);
+                if let Value::Object(obj) = self.stack.pop().unwrap() {
+                    match right.as_ref() {
+                        ast::Expr::Ident(name) => {
+                            if let Some(func) = obj.as_ref().virtual_get_func(name, self) {
+                                self.stack.push(Value::Object(func.clone()));
+                            } else if let Object::Record { id, members } = obj.as_ref() {
+                                if let Some(idx) = Object::record_get_member_idx(*id, name, self) {
+                                    self.stack.push(members[idx].clone());
+                                } else {
+                                    self.error(
+                                        l,
+                                        c,
+                                        &format!("this object not have name is `{}` member", name),
+                                    );
+                                }
+                            } else {
+                                self.error(
+                                    l,
+                                    c,
+                                    &format!(
+                                        "this `{}` not is member_func and not is record_member",
+                                        name
+                                    ),
+                                );
+                            }
+                        }
+                        _ => unreachable!(),
+                    }
+                } else {
+                    self.error(l, c, "this `.` left not return object");
+                }
+            }
             _ => unimplemented!(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn new_record_decl(
+        &mut self,
+        name: String,
+        member_funcs: HashMap<String, ObjectRef>,
+        members: Option<HashMap<String, usize>>,
+    ) {
+        self.record_metadata.push(ObjectMetadata {
+            name,
+            size: if let Some(members) = &members {
+                members.len()
+            } else {
+                0
+            },
+            member_funcs,
+            members,
+        })
+    }
+
+    #[allow(dead_code)]
+    pub fn get_record_metadata_mut(&mut self) -> &mut Vec<ObjectMetadata> {
+        &mut self.record_metadata
+    }
+
+    #[allow(dead_code)]
+    pub fn get_record_metadata(&self) -> &Vec<ObjectMetadata> {
+        &self.record_metadata
+    }
+
+    #[inline]
+    pub fn func_calling(
+        &mut self,
+        name: &String,
+        func: Function,
+        args: &Vec<ast::Expr>,
+        l: usize,
+        c: usize,
+    ) {
+        match &func.body {
+            FunctionImpl::General(body) => {
+                self.cur_func.reset(func.params, func.body.clone());
+                let name = String::from(name);
+                let func: Option<Function> = Some(self.cur_func.clone());
+                let last_ret_idx: usize = self.pc;
+
+                let iter = self.cur_func.params.clone();
+                let not_have_reuse_frame = self.sp == self.frames.len() - 1;
+                if not_have_reuse_frame {
+                    // 没有可复用的帧
+                    let mut vars = HashMap::new();
+                    for (param, arg) in iter.into_iter().zip(args.into_iter()) {
+                        self.eval_expr(arg, l, c);
+
+                        vars.insert(param, self.stack.pop().unwrap());
+                    }
+                    self.frames.push(FunctionFrame {
+                        name,
+                        vars,
+                        func,
+                        last_ret_idx,
+                    });
+                    self.sp += 1;
+                } else {
+                    self.sp += 1;
+
+                    for (param, arg) in iter.into_iter().zip(args.into_iter()) {
+                        self.eval_expr(arg, l, c);
+                        let result = self.stack.pop().unwrap();
+                        self.cur_frame_mut().vars.insert(param, result);
+                    }
+                    let cur_frame = self.cur_frame_mut();
+                    cur_frame.name = name;
+                    cur_frame.func = func;
+                }
+
+                self.pc = 0;
+
+                // println!("calling: {}", name);
+                self.eval_stmt(body, l, c);
+
+                self.pc = self.cur_frame_mut().last_ret_idx;
+                if not_have_reuse_frame {
+                    self.frames.pop();
+                }
+                self.sp -= 1;
+            }
+            FunctionImpl::Native(ptr) => {
+                let mut calling_args = Vec::new();
+                for arg in args.iter() {
+                    self.eval_expr(arg, l, c);
+                    calling_args.push(self.stack.pop().unwrap());
+                }
+                unsafe {
+                    self.stack.push(ptr(ModuleFuncArgs::new(calling_args)));
+                }
+            }
         }
     }
     #[inline]
@@ -499,87 +625,9 @@ impl Interpreter {
         c: usize,
     ) {
         if let Object::Function { func } = func_ref.as_ref() {
-            let func = func.clone();
-            match &func.body {
-                FunctionImpl::General(body) => {
-                    self.cur_func.reset(func.params, func.body.clone());
-                    let name = String::from(name);
-                    let func: Option<Function> = Some(self.cur_func.clone());
-                    let last_ret_idx: usize = self.pc;
-
-                    let iter = self.cur_func.params.clone();
-                    let not_have_reuse_frame = self.sp == self.frames.len() - 1;
-                    if not_have_reuse_frame {
-                        // 没有可复用的帧
-                        let mut vars = HashMap::new();
-                        for (param, arg) in iter.into_iter().zip(args.into_iter()) {
-                            self.eval_expr(arg, l, c);
-
-                            vars.insert(param, self.stack.pop().unwrap());
-                        }
-                        self.frames.push(FunctionFrame {
-                            name,
-                            vars,
-                            func,
-                            last_ret_idx,
-                        });
-                        self.sp += 1;
-                    } else {
-                        self.sp += 1;
-
-                        for (param, arg) in iter.into_iter().zip(args.into_iter()) {
-                            self.eval_expr(arg, l, c);
-                            let result = self.stack.pop().unwrap();
-                            self.cur_frame_mut().vars.insert(param, result);
-                        }
-                        let cur_frame = self.cur_frame_mut();
-                        cur_frame.name = name;
-                        cur_frame.func = func;
-                    }
-
-                    self.pc = 0;
-
-                    // println!("calling: {}", name);
-                    self.eval_stmt(body, l, c);
-
-                    self.pc = self.cur_frame_mut().last_ret_idx;
-                    if not_have_reuse_frame {
-                        self.frames.pop();
-                    }
-                    self.sp -= 1;
-                }
-                FunctionImpl::Native(ts, ptr) => {
-                    let mut calling_args = Vec::new();
-                    if ts.len() > 0 && ts[0] != usize::MAX {
-                        //只有一个且为最大，就是不定长参数
-                        for i in (0..=ts.len()).rev() {
-                            if let Some(v) = self.stack.pop() {
-                                if v.type_id() == ts[i] {
-                                    calling_args.push(v);
-                                } else {
-                                    self.error(
-                                        l,
-                                        c,
-                                        &format!(
-                                            "Type error: expected `{}` but got `{}`",
-                                            Value::type_to_string(ts[i]),
-                                            v.type_info()
-                                        ),
-                                    );
-                                }
-                            }
-                        }
-                    } else {
-                        for arg in args.iter() {
-                            self.eval_expr(arg, l, c);
-                            calling_args.push(self.stack.pop().unwrap());
-                        }
-                    }
-                    unsafe {
-                        self.stack.push(ptr(ModuleFuncArgs::new(calling_args)));
-                    }
-                }
-            }
+            self.func_calling(name, func.clone(), args, l, c);
+        } else {
+            self.error(l, c, &format!("Undefined function '{}'", name));
         }
     }
 
@@ -653,13 +701,13 @@ impl Interpreter {
     }
 
     #[allow(dead_code)]
-    pub fn new_func(&mut self, name: String, ts: Vec<usize>, func: ModuleFnPtr) {
+    pub fn new_func(&mut self, name: String, func: ModuleFnPtr) {
         self.frames[0].vars.insert(
             name.clone(),
             Value::Object(ObjectRef::new(Object::Function {
                 func: Function {
                     params: vec!["@".to_string()],
-                    body: FunctionImpl::Native(ts, func),
+                    body: FunctionImpl::Native(func),
                 },
             })),
         );

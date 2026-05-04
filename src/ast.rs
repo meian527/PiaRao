@@ -24,6 +24,7 @@ pub enum Expr {
     Null,                                        // not null value, this is null expr
     IdentList(Vec<String>),                      // for function parameters
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>), // condition, then, else
+    Dot(Box<Expr>, Box<Expr>),
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct Node {

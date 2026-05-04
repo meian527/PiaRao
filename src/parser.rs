@@ -201,29 +201,7 @@ impl<'a> Parser<'a> {
                 ast::Expr::Ident(name)
             }
         } else {
-            let mut result = self.parse_primary();
-            if self.match_ok(lexer::TokenType::LParen) {
-                self.advance();
-                let mut args = Vec::new();
-                while self.pos < self.tokens.len()
-                    && !self.match_ok(lexer::TokenType::RParen)
-                    && self.match_ok(lexer::TokenType::EOF)
-                    && self.match_ok(lexer::TokenType::SemiColon)
-                {
-                    args.push(self.parse_expr());
-                    if self.match_ok(lexer::TokenType::RParen)
-                        || self.match_ok(lexer::TokenType::EOF)
-                        || self.pos >= self.tokens.len()
-                        || self.match_ok(lexer::TokenType::SemiColon)
-                    {
-                        break;
-                    }
-                    self.consume(lexer::TokenType::Comma);
-                }
-                self.consume(lexer::TokenType::RParen);
-                result = ast::Expr::DynCall(Box::new(result), args);
-            }
-            result
+            self.parse_primary()
         }
     }
     fn is_primary_start(&self) -> bool {
@@ -241,6 +219,7 @@ impl<'a> Parser<'a> {
             || tk.t == lexer::TokenType::KWFn
     }
     fn parse_primary(&mut self) -> ast::Expr {
+        let mut result: ast::Expr;
         if self.match_ok(lexer::TokenType::Digit) {
             let num = self.cur().v.clone();
             self.advance();
@@ -251,9 +230,9 @@ impl<'a> Parser<'a> {
                 float_str.push_str(&self.cur().v);
                 // println!("Parsed float: {}", float_str);
                 self.advance();
-                ast::Expr::Float(float_str)
+                result = ast::Expr::Float(float_str);
             } else {
-                ast::Expr::Number(num.parse().unwrap())
+                result = ast::Expr::Number(num.parse().unwrap());
             }
         } else if (self.match_ok(lexer::TokenType::OpUnarySub)
             || self.match_ok(lexer::TokenType::OpUnaryNot))
@@ -263,16 +242,14 @@ impl<'a> Parser<'a> {
             self.advance();
             let expr = self.parse_expr();
             self.consume(lexer::TokenType::RParen);
-            ast::Expr::UnaryOp(op, Box::new(expr))
+            result = ast::Expr::UnaryOp(op, Box::new(expr));
         } else if self.match_ok(lexer::TokenType::LParen) {
             self.advance();
-            let expr = self.parse_expr();
+            result = self.parse_expr();
             self.consume(lexer::TokenType::RParen);
-            expr
         } else if self.match_ok(lexer::TokenType::Ident) {
-            let name = self.cur().v.clone();
+            result = ast::Expr::Ident(self.cur().v.clone());
             self.advance();
-            ast::Expr::Ident(name)
         } else if self.match_ok(lexer::TokenType::LBrace) {
             self.advance();
             let mut stmts = Vec::new();
@@ -294,28 +271,72 @@ impl<'a> Parser<'a> {
             }
             self.calling_track.pop();
             self.consume(lexer::TokenType::RBrace);
-            ast::Expr::Block(stmts)
+            result = ast::Expr::Block(stmts);
         } else if self.match_ok(lexer::TokenType::SemiColon) || self.match_ok(lexer::TokenType::EOF)
         {
-            ast::Expr::Null
+            result = ast::Expr::Null;
         } else if self.match_ok(lexer::TokenType::KWIf) {
             self.advance();
-            self.parse_if_expr()
+            result = self.parse_if_expr();
         } else if self.match_ok(lexer::TokenType::KWFn) {
             self.advance();
-            self.parse_lambda_expr()
+            result = self.parse_lambda_expr();
         } else if self.match_ok(lexer::TokenType::StringLiteral) {
             let str = self.cur().v.clone();
             self.advance();
-            ast::Expr::String(str)
+            result = ast::Expr::String(str);
         } else {
             self.error(
                 self.cur().l,
                 self.cur().c,
                 &format!("Unexpected token `{:?}`", self.cur().t),
             );
-            ast::Expr::Null
+            result = ast::Expr::Null;
         }
+        while self.match_ok(lexer::TokenType::LParen) || self.match_ok(lexer::TokenType::Dot) {
+            match self.cur().t {
+                lexer::TokenType::LParen => {
+                    self.advance();
+                    let mut args = Vec::new();
+                    while self.pos < self.tokens.len()
+                        && !self.match_ok(lexer::TokenType::RParen)
+                        && self.match_ok(lexer::TokenType::EOF)
+                        && self.match_ok(lexer::TokenType::SemiColon)
+                    {
+                        args.push(self.parse_expr());
+                        if self.match_ok(lexer::TokenType::RParen)
+                            || self.match_ok(lexer::TokenType::EOF)
+                            || self.pos >= self.tokens.len()
+                            || self.match_ok(lexer::TokenType::SemiColon)
+                        {
+                            break;
+                        }
+                        self.consume(lexer::TokenType::Comma);
+                    }
+                    self.consume(lexer::TokenType::RParen);
+                    result = ast::Expr::DynCall(Box::new(result), args);
+                }
+                lexer::TokenType::Dot => {
+                    self.advance();
+                    if self.match_ok(lexer::TokenType::Ident) {
+                        result = ast::Expr::Dot(
+                            Box::new(result),
+                            Box::new(ast::Expr::Ident(self.cur().v.clone())),
+                        );
+                        self.advance();
+                    } else {
+                        self.error(
+                            self.cur().l,
+                            self.cur().c,
+                            &"`.` right only is `Ident` or func_call expr".to_string(),
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        result
     }
 
     fn parse_if_expr(&mut self) -> ast::Expr {

@@ -46,8 +46,7 @@ impl LangState {
     #[allow(dead_code)]
     pub fn register_builtins(&mut self) {
         for (name, ptr) in &builtins::BUILTIN_FUNCTIONS {
-            self.interp
-                .new_func(name.to_string(), vec![usize::MAX], ptr.clone());
+            self.interp.new_func(name.to_string(), ptr.clone());
         }
     }
 }
