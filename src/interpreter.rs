@@ -1,18 +1,19 @@
 use crate::ast;
 use crate::builtins;
 use crate::objects::{GLOBAL_OBJECT_METADATA_MAP, Object, ObjectRef};
-use dashu_base::{Abs, Signed};
-use dashu_ratio::RBig;
+use rug;
 use std::clone::Clone;
 use std::collections::HashMap;
-use std::fmt::Display;
+use std::fmt::{Display};
 use std::string::ToString;
+use rug::ops::Pow;
 
+type NumberImpl = rug::Rational;
 #[allow(dead_code)]
 #[repr(C)]
 #[derive(Debug)]
 pub enum Value {
-    Number(RBig),
+    Number(NumberImpl),
     Object(ObjectRef),
     Null,
     Bool(bool),
@@ -270,12 +271,13 @@ impl Interpreter {
                 let _ = self.stack.pop();
             }
             ast::Stmt::Let(lhs, r) => {
-                if let ast::Expr::Ident(name) = &**lhs && let ast::Stmt::NotPopValueExpr(expr) = &r.stmt{ // var
-                   self.eval_expr(expr.as_ref(), r.l, r.c);
-                   let val = self.stack.pop().unwrap();
-                   self.cur_frame_mut()
-                       .vars
-                       .insert(name.clone(), val);
+                if let ast::Expr::Ident(name) = &**lhs
+                    && let ast::Stmt::NotPopValueExpr(expr) = &r.stmt
+                {
+                    // var
+                    self.eval_expr(expr.as_ref(), r.l, r.c);
+                    let val = self.stack.pop().unwrap();
+                    self.cur_frame_mut().vars.insert(name.clone(), val);
                 } else if let ast::Expr::IdentList(params) = &**lhs {
                     // func
                     let name = &params[0];
@@ -313,23 +315,21 @@ impl Interpreter {
         &mut self.frames[self.sp]
     }
 
-    fn parse_float_string(s: &str) -> RBig {
+    fn parse_float_string(s: &str) -> NumberImpl {
         let mut parts = s.split('.');
         let int_part = parts.next().unwrap();
         let frac_part = parts.next().unwrap_or("");
 
-        let denom = 10u64.pow(frac_part.len() as u32);
-
-        let mut num = int_part.parse::<u64>().unwrap() * denom;
-        if !frac_part.is_empty() {
-            num += frac_part.parse::<u64>().unwrap();
-        }
-
-        RBig::from_parts(num.into(), denom.into())
+        NumberImpl::from(
+            int_part.parse::<i64>().unwrap()) + NumberImpl::from((
+                frac_part.parse::<i64>().unwrap(),
+                10_i64.pow(frac_part.len() as u32),
+            )
+        )
     }
     fn eval_expr(&mut self, expr: &ast::Expr, l: usize, c: usize) -> () {
         match expr {
-            ast::Expr::Number(n) => self.stack.push(Value::Number(RBig::from(*n))),
+            ast::Expr::Number(n) => self.stack.push(Value::Number(NumberImpl::from(*n))),
             ast::Expr::Float(n) => self.stack.push(Value::Number(Self::parse_float_string(n))),
             ast::Expr::Ident(s) => {
                 if let Some(val) = self.find_var(s).cloned() {
@@ -340,19 +340,27 @@ impl Interpreter {
             }
             ast::Expr::BinaryOp(lhs, op, rhs) => {
                 self.eval_expr(lhs, l, c);
-                match self.stack.pop().unwrap() {
+                match &self.stack.pop().unwrap() {
                     Value::Number(r) => {
                         self.eval_expr(rhs, l, c);
-                        if let Value::Number(ln) = self.stack.pop().unwrap() {
+                        if let Value::Number(ln) = &self.stack.pop().unwrap() {
                             match op.as_str() {
-                                "+" => self.stack.push(Value::Number(r + ln)),
-                                "-" => self.stack.push(Value::Number(r - ln)),
-                                "*" => self.stack.push(Value::Number(r * ln)),
-                                "/" => self.stack.push(Value::Number(r / ln)),
-                                "%" => self.stack.push(Value::Number(r / ln)),
-                                "^" => self
-                                    .stack
-                                    .push(Value::Number(ln.pow(r.clone().try_into().unwrap()))),
+                                "+" => self.stack.push(Value::Number(NumberImpl::from(r + ln))),
+                                "-" => self.stack.push(Value::Number(NumberImpl::from(r - ln))),
+                                "*" => self.stack.push(Value::Number(NumberImpl::from(r * ln))),
+                                "/" => self.stack.push(Value::Number(NumberImpl::from(r / ln))),
+                                "%" => self.stack.push(Value::Number(NumberImpl::from(r / ln))),
+                                "^" => {
+                                    let exp = if ln <= &i32::MAX {
+                                        rug::Integer::from(ln.numer() / ln.denom()).to_i32().unwrap()
+                                    } else {
+                                        self.error(l, c, &format!("`base ^ exp` exp so big(Max is int32::max but exp = {})", ln));
+                                        0
+                                    };
+                                    self
+                                        .stack
+                                        .push(Value::Number(NumberImpl::from(r.pow(exp))))
+                                },
                                 "==" => self.stack.push(Value::Bool(r == ln)),
                                 "!=" => self.stack.push(Value::Bool(r != ln)),
                                 ">" => self.stack.push(Value::Bool(r > ln)),
@@ -406,13 +414,13 @@ impl Interpreter {
                 match self.stack.pop().unwrap() {
                     Value::Number(n) => match op.as_str() {
                         "-" => self.stack.push(Value::Number(-n)),
-                        "!" => self.stack.push(Value::Number(if n.is_zero() {
-                            RBig::from(1)
-                        } else {
-                            RBig::from(0)
-                        })),
                         _ => self.error(l, c, &format!("Unknown unary operator '{}'", op)),
                     },
+                    Value::Bool(b) => match op.as_str() {
+                        "!" => self.stack.push(Value::Bool(!b)),
+                        _ => self.error(l, c, &format!("Unknown unary operator '{}'", op)),
+                    }
+
                     _ => self.error(
                         l,
                         c,
@@ -606,14 +614,14 @@ impl Interpreter {
     }
 
     #[allow(dead_code)]
-    fn rbig_to_float_str(r: &RBig, max_frac: usize) -> String {
-        let mut num = r.numerator().clone();
-        let denom = r.denominator().clone();
+    fn rbig_to_float_str(r: &NumberImpl, max_frac: usize) -> String {
+        let mut num = r.numer().clone();
+        let denom = r.denom().clone();
 
         let sign = if num.is_negative() { "-" } else { "" };
         num = num.abs();
 
-        let int_part = &num / &denom;
+        let int_part = NumberImpl::from(&num / &denom);
         let mut rem = num % &denom;
 
         let mut frac = String::new();
@@ -622,9 +630,9 @@ impl Interpreter {
                 break;
             }
             rem *= 10;
-            let digit = &rem / &denom;
+            let digit = NumberImpl::from(&rem / &denom);
             rem = rem % &denom;
-            frac.push_str(&digit.to_string());
+            frac.push_str(digit.to_string().as_str());
         }
 
         // 处理整数结果（如 4）

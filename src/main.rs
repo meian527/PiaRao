@@ -5,7 +5,6 @@ mod lang;
 mod lexer;
 mod objects;
 mod parser;
-
 use std::time::Instant;
 
 fn main() {
