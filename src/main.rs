@@ -6,8 +6,7 @@ mod lexer;
 mod objects;
 mod parser;
 use crate::interpreter::{Function, FunctionImpl, Value};
-use crate::objects::ObjectRef;
-use std::time::Instant;
+use crate::objects::{ObjectRef};
 
 fn main() {
     // let src = String::from(
@@ -29,8 +28,7 @@ fn main() {
     // );
     let src = String::from(
         r#"
-        let str = "str";
-        str.trim();
+        "str".print_self();
         "#,
     );
     let mut lang_state = lang::LangState::new(&src);
@@ -39,22 +37,29 @@ fn main() {
     lang_state.get_interp_mut().get_record_metadata_mut()[1] // 1 是字符串类型的元信息id
         .member_funcs
         .insert(
-            "trim".to_string(),
+            "print_self".to_string(),
             ObjectRef::from(objects::Object::Function {
                 func: Function {
-                    params: vec![], // native函数实现不需要这个
+                    params: Vec::new(), // native函数实现不需要这个
                     body: FunctionImpl::Native(|args| {
-                        println!("I am a member func in String , my name is trim");
+                        let this = args.args[0].clone();
+                        println!("{}", this);
                         Value::Null
                     }),
                 },
             }),
         );
     // lang_state.print_ast();
-    let start = Instant::now();
-
     lang_state.interpret();
-    let duration = start.elapsed();
-    println!("Took {:?}", duration);
-    lang_state.print_var("result");
 }
+
+
+
+
+
+
+
+
+
+
+

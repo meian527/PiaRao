@@ -22,7 +22,7 @@ impl Object {
     ) -> Option<&'a ObjectRef> {
         let id = match self {
             Object::Function { func: _ } => 0usize,
-            Object::String { data: _ } => 0usize,
+            Object::String { data: _ } => 1usize,
             Object::Record { id, members: _ } => *id,
         };
         interp.get_record_metadata()[id].member_funcs.get(name)

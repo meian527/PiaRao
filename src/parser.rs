@@ -79,7 +79,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /* experssions tree
+    /* expressions tree
      * expr ::= assign
      * assign ::= ident '=' assign | logical
      * logical ::= equality (('&&' | '||') equality)*
@@ -168,7 +168,7 @@ impl<'a> Parser<'a> {
         node
     }
     fn parse_factor(&mut self) -> ast::Expr {
-        if self.match_ok(lexer::TokenType::Ident) {
+        if self.match_ok(lexer::TokenType::Ident) && self.tk_is_primary_start(self.peek(1)) {
             let name = self.cur().v.clone();
             self.advance();
             if self.match_ok(lexer::TokenType::LParen) {

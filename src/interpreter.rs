@@ -198,6 +198,7 @@ pub struct Interpreter {
     loop_continue_points: Vec<usize>,
     sp: usize,
     record_metadata: Vec<ObjectMetadata>,
+    member_func_calling: bool
 }
 impl Interpreter {
     pub fn new(prog: ast::Program) -> Self {
@@ -222,6 +223,7 @@ impl Interpreter {
             loop_continue_points: Vec::new(),
             sp: 0,
             record_metadata: builtins::metadata::get_builtin_metadata(),
+            member_func_calling: false
         }
     }
     pub fn interpret(&mut self) {
@@ -461,7 +463,7 @@ impl Interpreter {
                 self.eval_expr(func, l, c);
                 if let Some(f) = self.stack.pop() {
                     if let Value::Object(func) = f {
-                        self.func_call(&format!("Lambda<{}>", self.counter), func, args, l, c);
+                            self.func_call(&format!("Lambda<{}>", self.counter), func, args, l, c);
                     } else {
                         self.error(
                             l,
@@ -481,11 +483,14 @@ impl Interpreter {
             }
             ast::Expr::Dot(left, right) => {
                 self.eval_expr(left, l, c);
-                if let Value::Object(obj) = self.stack.pop().unwrap() {
+                let this = self.stack.pop().unwrap();
+                if let Value::Object(obj) = &this {
                     match right.as_ref() {
                         ast::Expr::Ident(name) => {
-                            if let Some(func) = obj.as_ref().virtual_get_func(name, self) {
+                            if let Some(func) = obj.virtual_get_func(name, self).cloned() {
+                                self.stack.push(this.clone());
                                 self.stack.push(Value::Object(func.clone()));
+                                self.member_func_calling = true;
                             } else if let Object::Record { id, members } = obj.as_ref() {
                                 if let Some(idx) = Object::record_get_member_idx(*id, name, self) {
                                     self.stack.push(members[idx].clone());
@@ -567,6 +572,9 @@ impl Interpreter {
                 if not_have_reuse_frame {
                     // 没有可复用的帧
                     let mut vars = HashMap::new();
+                    if self.member_func_calling {
+                        vars.insert("self".to_string(), self.stack.pop().unwrap());
+                    }
                     for (param, arg) in iter.into_iter().zip(args.into_iter()) {
                         self.eval_expr(arg, l, c);
 
@@ -605,6 +613,9 @@ impl Interpreter {
             }
             FunctionImpl::Native(ptr) => {
                 let mut calling_args = Vec::new();
+                if self.member_func_calling {
+                    calling_args.push(self.stack.pop().unwrap());
+                }
                 for arg in args.iter() {
                     self.eval_expr(arg, l, c);
                     calling_args.push(self.stack.pop().unwrap());
@@ -614,6 +625,7 @@ impl Interpreter {
                 }
             }
         }
+        self.member_func_calling = false;
     }
     #[inline]
     fn func_call(
