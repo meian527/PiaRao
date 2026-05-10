@@ -300,8 +300,8 @@ impl<'a> Parser<'a> {
                     let mut args = Vec::new();
                     while self.pos < self.tokens.len()
                         && !self.match_ok(lexer::TokenType::RParen)
-                        && self.match_ok(lexer::TokenType::EOF)
-                        && self.match_ok(lexer::TokenType::SemiColon)
+                        && !self.match_ok(lexer::TokenType::EOF)
+                        && !self.match_ok(lexer::TokenType::SemiColon)
                     {
                         args.push(self.parse_expr());
                         if self.match_ok(lexer::TokenType::RParen)

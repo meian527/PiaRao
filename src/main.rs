@@ -5,8 +5,6 @@ mod lang;
 mod lexer;
 mod objects;
 mod parser;
-use crate::interpreter::{Function, FunctionImpl, Value};
-use crate::objects::{ObjectRef};
 
 fn main() {
     // let src = String::from(
@@ -28,27 +26,11 @@ fn main() {
     // );
     let src = String::from(
         r#"
-        "str".print_self();
+        println "this is a string".sub(5, 2);
         "#,
     );
     let mut lang_state = lang::LangState::new(&src);
     lang_state.register_builtins();
-
-    lang_state.get_interp_mut().get_record_metadata_mut()[1] // 1 是字符串类型的元信息id
-        .member_funcs
-        .insert(
-            "print_self".to_string(),
-            ObjectRef::from(objects::Object::Function {
-                func: Function {
-                    params: Vec::new(), // native函数实现不需要这个
-                    body: FunctionImpl::Native(|args| {
-                        let this = args.args[0].clone();
-                        println!("{}", this);
-                        Value::Null
-                    }),
-                },
-            }),
-        );
     // lang_state.print_ast();
     lang_state.interpret();
 }
