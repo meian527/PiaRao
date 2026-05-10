@@ -26,7 +26,9 @@ fn main() {
     // );
     let src = String::from(
         r#"
-        println "this is a string".sub(5, 2);
+        let arr = ["1str1", "1str2", "1str3"];
+        println arr[2].sub(0, 4);
+        println arr[0].sub(0, 2);
         "#,
     );
     let mut lang_state = lang::LangState::new(&src);
@@ -34,14 +36,3 @@ fn main() {
     // lang_state.print_ast();
     lang_state.interpret();
 }
-
-
-
-
-
-
-
-
-
-
-

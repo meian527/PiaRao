@@ -31,6 +31,8 @@ pub enum TokenType {
     Dot,
     LBrace,
     RBrace,
+    LBracket,
+    RBracket,
     KWLet,
     KWAnd,
     KWOr,
@@ -68,6 +70,8 @@ static TOKEN_TYPE_STR: phf::Map<u8, TokenType> = phf_map! {
     b'.' => TokenType::Dot,
     b'{' => TokenType::LBrace,
     b'}' => TokenType::RBrace,
+    b'[' => TokenType::LBracket,
+    b']' => TokenType::RBracket,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -123,7 +127,7 @@ impl<'a> Lexer<'a> {
         if self.pos < self.len {
             match self.s[self.pos] {
                 b'+' | b'*' | b'/' | b'%' | b'^' | b'(' | b')' | b';' | b',' | b'.' | b'{'
-                | b'}' => {
+                | b'}' | b'[' | b']' => {
                     result.v.push(self.s[self.pos] as char);
                     result.t = TOKEN_TYPE_STR[&self.s[self.pos]].clone();
                     self.advance();

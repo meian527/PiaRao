@@ -217,6 +217,7 @@ impl<'a> Parser<'a> {
             || tk.t == lexer::TokenType::StringLiteral
             || tk.t == lexer::TokenType::KWIf
             || tk.t == lexer::TokenType::KWFn
+            || tk.t == lexer::TokenType::LBracket
     }
     fn parse_primary(&mut self) -> ast::Expr {
         let mut result: ast::Expr;
@@ -285,6 +286,21 @@ impl<'a> Parser<'a> {
             let str = self.cur().v.clone();
             self.advance();
             result = ast::Expr::String(str);
+        } else if self.match_ok(lexer::TokenType::LBracket) {
+            self.advance();
+            let mut exprs = Vec::new();
+            while self.pos < self.tokens.len()
+                && !self.match_ok(lexer::TokenType::RBracket)
+                && !self.match_ok(lexer::TokenType::EOF)
+            {
+                exprs.push(self.parse_expr());
+                if self.match_ok(lexer::TokenType::RBracket) {
+                    break;
+                }
+                self.consume(lexer::TokenType::Comma);
+            }
+            self.consume(lexer::TokenType::RBracket);
+            result = ast::Expr::Array(exprs);
         } else {
             self.error(
                 self.cur().l,
@@ -293,7 +309,10 @@ impl<'a> Parser<'a> {
             );
             result = ast::Expr::Null;
         }
-        while self.match_ok(lexer::TokenType::LParen) || self.match_ok(lexer::TokenType::Dot) {
+        while self.match_ok(lexer::TokenType::LParen)
+            || self.match_ok(lexer::TokenType::Dot)
+            || self.match_ok(lexer::TokenType::LBracket)
+        {
             match self.cur().t {
                 lexer::TokenType::LParen => {
                     self.advance();
@@ -331,6 +350,12 @@ impl<'a> Parser<'a> {
                             &"`.` right only is `Ident` or func_call expr".to_string(),
                         );
                     }
+                }
+                lexer::TokenType::LBracket => {
+                    self.advance();
+                    let idx = self.parse_expr();
+                    self.consume(lexer::TokenType::RBracket);
+                    result = ast::Expr::ArrayAccess(Box::new(result), Box::new(idx));
                 }
                 _ => {}
             }

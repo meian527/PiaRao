@@ -198,7 +198,7 @@ pub struct Interpreter {
     loop_continue_points: Vec<usize>,
     sp: usize,
     record_metadata: Vec<ObjectMetadata>,
-    member_func_calling: bool
+    member_func_calling: bool,
 }
 impl Interpreter {
     pub fn new(prog: ast::Program) -> Self {
@@ -223,7 +223,7 @@ impl Interpreter {
             loop_continue_points: Vec::new(),
             sp: 0,
             record_metadata: builtins::metadata::get_builtin_metadata(),
-            member_func_calling: false
+            member_func_calling: false,
         }
     }
     pub fn interpret(&mut self) {
@@ -463,7 +463,7 @@ impl Interpreter {
                 self.eval_expr(func, l, c);
                 if let Some(f) = self.stack.pop() {
                     if let Value::Object(func) = f {
-                            self.func_call(&format!("Lambda<{}>", self.counter), func, args, l, c);
+                        self.func_call(&format!("Lambda<{}>", self.counter), func, args, l, c);
                     } else {
                         self.error(
                             l,
@@ -476,10 +476,7 @@ impl Interpreter {
                 }
             }
             ast::Expr::String(s) => {
-                self.stack
-                    .push(Value::Object(ObjectRef::new(Object::String {
-                        data: s.clone(),
-                    })));
+                self.stack.push(Object::new_string_value(s.clone()));
             }
             ast::Expr::Dot(left, right) => {
                 self.eval_expr(left, l, c);
@@ -518,7 +515,36 @@ impl Interpreter {
                     self.error(l, c, "this `.` left not return object");
                 }
             }
-            _ => unimplemented!(),
+            ast::Expr::IdentList(_) => {
+                unreachable!();
+            }
+            ast::Expr::Array(exprs) => {
+                let mut values = Vec::new();
+                for expr in exprs {
+                    self.eval_expr(expr, l, c);
+                    values.push(self.stack.pop().unwrap());
+                }
+                self.stack.push(Object::new_array_value(values));
+            }
+            ast::Expr::ArrayAccess(expr, index) => {
+                self.eval_expr(expr, l, c);
+                if let Value::Object(obj) = self.stack.pop().unwrap()
+                    && let Object::Array { data: arr_data } = obj.as_ref() {
+                    self.eval_expr(index, l, c);
+                    if let Value::Number(number) = &self.stack.pop().unwrap() {
+                        let index = rug::Integer::from(number.numer() / number.denom()).to_i64_wrapping() as usize;
+                        let value = match arr_data.get(index) {
+                            Some(value) => value.clone(),
+                            None => Value::Null,
+                        };
+                        self.stack.push(value);
+                    } else {
+                        self.error(l, c, "this index expr result is not Number type");
+                    }
+                } else {
+                    self.error(l, c, "this not is Array type");
+                }
+            }
         }
     }
 
