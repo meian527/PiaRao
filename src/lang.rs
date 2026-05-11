@@ -1,5 +1,5 @@
-use crate::interpreter::{Function, FunctionImpl, Interpreter, Value};
-use crate::objects::{Object, ObjectRef};
+use crate::interpreter::{Interpreter};
+use crate::objects::{Object};
 use crate::parser;
 use crate::{builtins, lexer};
 
@@ -50,38 +50,11 @@ impl LangState {
         for (name, ptr) in &builtins::BUILTIN_FUNCTIONS {
             self.interp.new_func(name.to_string(), ptr.clone());
         }
-        self.get_interp_mut().get_record_metadata_mut()[1] // 1 是字符串类型的元信息id
-            .member_funcs
-            .insert(
-                "sub".to_string(),
-                ObjectRef::from(Object::Function {
-                    func: Function {
-                        params: Vec::new(), // native函数实现不需要这个
-                        body: FunctionImpl::Native(|args| {
-                            let args = args.args;
-                            if let Value::Object(obj) = &args[0]
-                                && let Object::String { data } = obj.as_ref()
-                            {
-                                if let Value::Number(start) = &args[1]
-                                    && let Value::Number(len) = &args[2]
-                                {
-                                    let start = rug::Integer::from(start.numer() / start.denom())
-                                        .to_i64_wrapping()
-                                        as usize;
-                                    let len = rug::Integer::from(len.numer() / len.denom())
-                                        .to_i64_wrapping()
-                                        as usize;
-                                    return Object::new_string_value(
-                                        data[start..start + len].to_string(),
-                                    );
-                                } else {
-                                    panic!("Invalid argument type");
-                                }
-                            }
-                            unreachable!()
-                        }),
-                    },
-                }),
-            );
+        for i in 0..builtins::BUILTIN_RECORDS_FUNCTIONS.len() {
+            let record_metadata_funcs = &mut self.interp.get_record_metadata_mut()[i].member_funcs;
+            for (name, ptr) in builtins::BUILTIN_RECORDS_FUNCTIONS[i] {
+                record_metadata_funcs.insert(name.to_string(), Object::new_native_func(*ptr));
+            }
+        }
     }
 }

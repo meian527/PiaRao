@@ -1,17 +1,23 @@
 use crate::interpreter::{Function, FunctionImpl, Interpreter, ModuleFnPtr, Value};
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::sync::Arc;
+use std::rc::Rc;
 
-pub type ObjectRef = Arc<Object>;
-
+pub type ObjectRef = Rc<Object>;
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Object {
     Function { func: Function },
     String { data: String },
     Array { data: Vec<Value> },
     Record { id: usize, members: Box<[Value]> },
+}
+
+impl AsMut<Object> for Object {
+    #[inline]
+    fn as_mut(&mut self) -> &mut Self {
+        self
+    }
 }
 #[allow(dead_code)]
 const OBJECT_FUNCTION_ID: usize = 0;
@@ -21,13 +27,13 @@ const OBJECT_STRING_ID: usize = 1;
 const OBJECT_ARRAY_ID: usize = 2;
 impl Object {
     #[allow(dead_code)]
-    pub fn new_native_func(ptr: ModuleFnPtr) -> Self {
-        Self::Function {
+    pub fn new_native_func(ptr: ModuleFnPtr) -> ObjectRef {
+        ObjectRef::new(Self::Function {
             func: Function {
                 params: Vec::new(),
                 body: FunctionImpl::Native(ptr),
             },
-        }
+        })
     }
     #[allow(dead_code)]
     pub fn new_string_value(str: String) -> Value {

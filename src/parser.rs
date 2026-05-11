@@ -217,7 +217,7 @@ impl<'a> Parser<'a> {
             || tk.t == lexer::TokenType::StringLiteral
             || tk.t == lexer::TokenType::KWIf
             || tk.t == lexer::TokenType::KWFn
-            || tk.t == lexer::TokenType::LBracket
+            //|| tk.t == lexer::TokenType::LBracket
     }
     fn parse_primary(&mut self) -> ast::Expr {
         let mut result: ast::Expr;

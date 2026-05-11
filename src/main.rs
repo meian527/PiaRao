@@ -27,8 +27,8 @@ fn main() {
     let src = String::from(
         r#"
         let arr = ["1str1", "1str2", "1str3"];
-        println arr[2].sub(0, 4);
-        println arr[0].sub(0, 2);
+        arr[2].push(arr[1]);
+        println arr[2];
         "#,
     );
     let mut lang_state = lang::LangState::new(&src);

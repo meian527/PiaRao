@@ -1,8 +1,9 @@
 pub mod metadata;
+pub mod string;
 
 use crate::interpreter::{ModuleFnPtr, ModuleFuncArgs, Value};
 use crate::objects::{Object, ObjectRef};
-use phf::phf_map;
+use phf::{phf_map};
 use std::io::Write;
 
 #[allow(dead_code, unpredictable_function_pointer_comparisons)]
@@ -14,6 +15,12 @@ pub(crate) static BUILTIN_FUNCTIONS: phf::Map<&str, ModuleFnPtr> = phf_map! {
     "to_string" => to_string,
     "__pie_rao_main__" => __pie_rao_main__,
 };
+static FUNCTION_BUILTINS: phf::Map<&str, ModuleFnPtr> = phf_map!();
+#[allow(dead_code, unpredictable_function_pointer_comparisons)]
+pub(crate) static BUILTIN_RECORDS_FUNCTIONS: [&phf::Map<&str, ModuleFnPtr>; 2] = [
+    &FUNCTION_BUILTINS,
+    &string::BUILTIN_FUNCTIONS
+];
 
 fn print(args: ModuleFuncArgs) -> Value {
     for arg in args.args.iter() {
