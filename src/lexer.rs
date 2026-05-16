@@ -41,6 +41,8 @@ pub enum TokenType {
     KWFn,
     KWReturn,
     KWThen,
+    KWRecord,
+    KWType
 }
 static KEYWORD_STR: phf::Map<&'static str, TokenType> = phf_map! {
     "let" => TokenType::KWLet,
@@ -51,6 +53,8 @@ static KEYWORD_STR: phf::Map<&'static str, TokenType> = phf_map! {
     "fn" => TokenType::KWFn,
     "return" => TokenType::KWReturn,
     "then" => TokenType::KWThen,
+    "record" => TokenType::KWRecord,
+    "type" => TokenType::KWType,
 };
 static TOKEN_TYPE_STR: phf::Map<u8, TokenType> = phf_map! {
     b'+' => TokenType::OpAdd,
@@ -203,6 +207,13 @@ impl<'a> Lexer<'a> {
                     }
                     self.advance();
                     result.t = TokenType::StringLiteral;
+                }
+                b'#' => {
+                    self.advance();
+                    while self.s[self.pos] != b'\n' {
+                        self.advance();
+                    }
+                    return self.next();
                 }
                 _ => {
                     if self.s[self.pos].is_ascii_digit() {

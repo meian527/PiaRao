@@ -27,8 +27,12 @@ fn main() {
     let src = String::from(
         r#"
         let arr = ["1str1", "1str2", "1str3"];
-        arr[2].push(arr[1]);
-        println arr[2];
+        let str = arr[2].cat(arr[0]);
+        println str;
+
+        type Person = record name age;
+        let person = Person "jack" 16;
+        println person.name;
         "#,
     );
     let mut lang_state = lang::LangState::new(&src);

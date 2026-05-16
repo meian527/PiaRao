@@ -1,13 +1,14 @@
-use std::rc::Rc;
-use phf::phf_map;
-use crate::objects::Object;
+use crate::objects::{self, Object};
 use crate::interpreter::{ModuleFnPtr, ModuleFuncArgs, Value};
+use std::collections::HashMap;
+use std::sync::LazyLock;
 
-#[allow(dead_code, unpredictable_function_pointer_comparisons)]
-pub(crate) static BUILTIN_FUNCTIONS: phf::Map<&str, ModuleFnPtr> = phf_map! {
-    "sub" => sub,
-    "push" => push
-};
+pub(crate) static BUILTIN_FUNCTIONS: LazyLock<HashMap<&str, ModuleFnPtr>> = LazyLock::new(|| {
+    let mut m: HashMap<&str, ModuleFnPtr> = HashMap::new();
+    m.insert("sub", std::sync::Arc::new(sub as fn(ModuleFuncArgs) -> Value));
+    m.insert("cat", std::sync::Arc::new(cat as fn(ModuleFuncArgs) -> Value));
+    m
+});
 
 pub fn sub(args: ModuleFuncArgs) -> Value {
     let args = args.args;
@@ -36,12 +37,12 @@ pub fn sub(args: ModuleFuncArgs) -> Value {
     unreachable!()
 }
 
-pub fn push(args: ModuleFuncArgs) -> Value {
-    let mut args = args.args;
+pub fn cat(args: ModuleFuncArgs) -> Value {
+    let args = args.args;
     if args.len() != 2 {
         panic!("`String::push` called with incorrect number of arguments");
     }
-    let data_to_push = if let Value::Object(other) = &args[1] {
+    let mut result = if let Value::Object(other) = &args[0] {
         if let Object::String { data } = other.as_ref() {
             data.clone()
         } else {
@@ -50,10 +51,10 @@ pub fn push(args: ModuleFuncArgs) -> Value {
     } else {
         panic!("Invalid argument type");
     };
-    if let Value::Object(obj) = &mut args[0] {
-        if let Object::String { data } = Rc::make_mut(obj) {
-            data.push_str(data_to_push.as_str());
-            return Value::Null;
+    if let Value::Object(obj) = &args[1] {
+        if let Object::String { data } = obj.as_ref() {
+            result.push_str(data.as_str());
+            return objects::Object::new_string_value(result);
         }
     }
     unreachable!()

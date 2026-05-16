@@ -3,21 +3,22 @@ pub mod string;
 
 use crate::interpreter::{ModuleFnPtr, ModuleFuncArgs, Value};
 use crate::objects::{Object, ObjectRef};
-use phf::{phf_map};
+use std::collections::HashMap;
 use std::io::Write;
+use std::sync::LazyLock;
 
-#[allow(dead_code, unpredictable_function_pointer_comparisons)]
-pub(crate) static BUILTIN_FUNCTIONS: phf::Map<&str, ModuleFnPtr> = phf_map! {
-    "print" => print,
-    "println" => println,
-    "input" => input,
-    "type_info" => type_info,
-    "to_string" => to_string,
-    "__pie_rao_main__" => __pie_rao_main__,
-};
-static FUNCTION_BUILTINS: phf::Map<&str, ModuleFnPtr> = phf_map!();
-#[allow(dead_code, unpredictable_function_pointer_comparisons)]
-pub(crate) static BUILTIN_RECORDS_FUNCTIONS: [&phf::Map<&str, ModuleFnPtr>; 2] = [
+pub(crate) static BUILTIN_FUNCTIONS: LazyLock<HashMap<&str, ModuleFnPtr>> = LazyLock::new(|| {
+    let mut m: HashMap<&str, ModuleFnPtr> = HashMap::new();
+    m.insert("print", std::sync::Arc::new(print as fn(ModuleFuncArgs) -> Value));
+    m.insert("println", std::sync::Arc::new(println as fn(ModuleFuncArgs) -> Value));
+    m.insert("input", std::sync::Arc::new(input as fn(ModuleFuncArgs) -> Value));
+    m.insert("type_info", std::sync::Arc::new(type_info as fn(ModuleFuncArgs) -> Value));
+    m.insert("to_string", std::sync::Arc::new(to_string as fn(ModuleFuncArgs) -> Value));
+    m.insert("__pie_rao_main__", std::sync::Arc::new(__pie_rao_main__ as fn(ModuleFuncArgs) -> Value));
+    m
+});
+static FUNCTION_BUILTINS: LazyLock<HashMap<&str, ModuleFnPtr>> = LazyLock::new(|| HashMap::new());
+pub(crate) static BUILTIN_RECORDS_FUNCTIONS: [&LazyLock<HashMap<&str, ModuleFnPtr>>; 2] = [
     &FUNCTION_BUILTINS,
     &string::BUILTIN_FUNCTIONS
 ];

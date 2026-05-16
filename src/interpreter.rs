@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::builtins;
+use crate::objects;
 use crate::objects::{Object, ObjectMetadata, ObjectRef};
 use rug;
 use rug::ops::Pow;
@@ -11,7 +12,7 @@ use std::string::ToString;
 type NumberImpl = rug::Rational;
 #[allow(dead_code)]
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Value {
     Number(NumberImpl),
     Object(ObjectRef),
@@ -22,16 +23,23 @@ const VALUE_NUMBER: usize = 0;
 const VALUE_OBJECT: usize = 1;
 const VALUE_NULL: usize = 2;
 const VALUE_BOOL: usize = 3;
-impl Clone for Value {
-    fn clone(&self) -> Value {
-        match self {
-            Value::Object(obj) => Value::Object(obj.clone()),
-            Value::Number(num) => Value::Number(num.clone()),
-            Value::Bool(bool) => Value::Bool(*bool),
-            Value::Null => Value::Null,
-        }
-    }
-}
+// impl Clone for Value {
+//     fn clone(&self) -> Value {
+//         match self {
+//             Value::Object(obj) => Value::Object(obj.clone()),
+//             Value::Number(num) => Value::Number(num.clone()),
+//             Value::Bool(bool) => Value::Bool(*bool),
+//             Value::Null => Value::Null,
+//         }
+//     }
+//
+//     fn clone_from(&mut self, source: &Self)
+//     where
+//         Self:
+//     {
+//         todo!()
+//     }
+// }
 
 impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -107,12 +115,29 @@ impl ModuleFuncArgs {
     }
 }
 
-pub type ModuleFnPtr = unsafe fn(ModuleFuncArgs) -> Value;
+pub type ModuleFnPtr = std::sync::Arc<dyn Fn(ModuleFuncArgs) -> Value + Send + Sync>;
 #[allow(dead_code, unpredictable_function_pointer_comparisons)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 pub enum FunctionImpl {
     General(ast::Stmt),
     Native(ModuleFnPtr),
+}
+impl std::fmt::Debug for FunctionImpl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::General(stmt) => f.debug_tuple("General").field(stmt).finish(),
+            Self::Native(_) => f.debug_tuple("Native").finish(),
+        }
+    }
+}
+impl PartialEq for FunctionImpl {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::General(a), Self::General(b)) => a == b,
+            (Self::Native(_), Self::Native(_)) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -130,10 +155,10 @@ impl Function {
         self.body = body;
     }
 }
-static GLOBAL_MAIN_FUNC: Function = Function {
+static GLOBAL_MAIN_FUNC: std::sync::LazyLock<Function> = std::sync::LazyLock::new(|| Function {
     params: Vec::new(),
-    body: FunctionImpl::Native(builtins::__pie_rao_main__),
-};
+    body: FunctionImpl::Native(std::sync::Arc::new(builtins::__pie_rao_main__ as fn(ModuleFuncArgs) -> Value)),
+});
 
 #[allow(dead_code)]
 #[derive(Clone)]
@@ -209,14 +234,14 @@ impl Interpreter {
                 result.push(FunctionFrame {
                     name: String::from("<main>"),
                     vars: HashMap::new(),
-                    func: Some(GLOBAL_MAIN_FUNC.clone()),
+                    func: Some((*GLOBAL_MAIN_FUNC).clone()),
                     last_ret_idx: usize::MAX,
                 });
                 result
             },
             prog,
             pc: 0,
-            cur_func: GLOBAL_MAIN_FUNC.clone(),
+            cur_func: (*GLOBAL_MAIN_FUNC).clone(),
             counter: 0,
             loaded_modules: HashMap::new(),
             block_break_points: Vec::new(),
@@ -295,6 +320,32 @@ impl Interpreter {
             }
             ast::Stmt::NotPopValueExpr(expr) => {
                 self.eval_expr(expr.as_ref(), l, c);
+            }
+            ast::Stmt::ADTypeDecl(_) => {
+                unimplemented!()
+            }
+            ast::Stmt::RecordTypeDecl(name, members) => {
+                let members = {
+                    let mut result = HashMap::new();
+                    for i in 0..members.len() {
+                        result.insert(members[i].clone(), i);
+                    }
+                    result
+                };
+                let size = members.len();
+                let id = self.record_metadata.len();
+                self.record_metadata.push(objects::ObjectMetadata {
+                    name: name.clone(), size, member_funcs: HashMap::new(), 
+                    members: if members.is_empty() {
+                        None
+                    } else {
+                        Some(members)
+                    }
+                });
+                
+                self.new_func(name.clone(), std::sync::Arc::new(move |args| {
+                    objects::Object::new_record_value(id, args.args)
+                }));
             }
         }
     }
@@ -646,9 +697,7 @@ impl Interpreter {
                     self.eval_expr(arg, l, c);
                     calling_args.push(self.stack.pop().unwrap());
                 }
-                unsafe {
-                    self.stack.push(ptr(ModuleFuncArgs::new(calling_args)));
-                }
+                self.stack.push(ptr(ModuleFuncArgs::new(calling_args)));
             }
         }
         self.member_func_calling = false;

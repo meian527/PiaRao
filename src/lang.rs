@@ -47,13 +47,13 @@ impl LangState {
 
     #[allow(dead_code)]
     pub fn register_builtins(&mut self) {
-        for (name, ptr) in &builtins::BUILTIN_FUNCTIONS {
+        for (name, ptr) in builtins::BUILTIN_FUNCTIONS.iter() {
             self.interp.new_func(name.to_string(), ptr.clone());
         }
         for i in 0..builtins::BUILTIN_RECORDS_FUNCTIONS.len() {
             let record_metadata_funcs = &mut self.interp.get_record_metadata_mut()[i].member_funcs;
-            for (name, ptr) in builtins::BUILTIN_RECORDS_FUNCTIONS[i] {
-                record_metadata_funcs.insert(name.to_string(), Object::new_native_func(*ptr));
+            for (name, ptr) in builtins::BUILTIN_RECORDS_FUNCTIONS[i].iter() {
+                record_metadata_funcs.insert(name.to_string(), Object::new_native_func(ptr.clone()));
             }
         }
     }

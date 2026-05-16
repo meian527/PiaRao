@@ -464,7 +464,11 @@ impl<'a> Parser<'a> {
                 l: line,
                 c: col,
             }
-        } else {
+        }  else if self.match_ok(lexer::TokenType::KWType) {
+            self.advance();
+            self.parse_type_def()
+        }
+        else {
             let expr = self.parse_expr();
             ast::Node {
                 stmt: ast::Stmt::Expr(Box::new(expr)),
@@ -473,5 +477,35 @@ impl<'a> Parser<'a> {
             }
         };
         stmt
+    }
+
+    fn parse_type_def(&mut self) -> ast::Node {
+        let name = self.cur().v.clone();
+        let line = self.cur().l;
+        let col = self.cur().c;
+        self.consume(lexer::TokenType::Ident);
+        self.consume(lexer::TokenType::Assign);
+        match self.cur().t {
+            lexer::TokenType::KWRecord => {
+                self.advance();
+                let mut members = Vec::new();
+                while !self.match_ok(lexer::TokenType::SemiColon) && self.pos < self.tokens.len() {
+                    if self.match_ok(lexer::TokenType::Ident) {
+                        members.push(self.cur().v.clone());
+                        self.advance();
+                    } else if self.match_ok(lexer::TokenType::SemiColon) {
+                        break;
+                    }
+                }
+                ast::Node {
+                    stmt : ast::Stmt::RecordTypeDecl(name, members),
+                    l: line, c: col
+                }
+            }
+            _ => {
+                self.error(self.cur().l, self.cur().c, &"unexpected token on typedef".to_string());
+                unreachable!()
+            }
+        }
     }
 }

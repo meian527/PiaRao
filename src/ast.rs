@@ -6,6 +6,8 @@ pub enum Stmt {
     Expr(Box<Expr>),
     NotPopValueExpr(Box<Expr>),
     Let(Box<Expr>, Box<Node>),
+    ADTypeDecl(Vec<(String, Vec<String>)>),
+    RecordTypeDecl(String, Vec<String>)
 }
 
 #[derive(Clone, Debug, PartialEq)]

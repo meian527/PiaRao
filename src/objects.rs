@@ -43,6 +43,9 @@ impl Object {
     pub fn new_array_value(arr: Vec<Value>) -> Value {
         Value::Object(ObjectRef::new(Self::Array { data: arr }))
     }
+    pub fn new_record_value(id: usize, init: Vec<Value>) -> Value {
+        Value::Object(ObjectRef::new(Self::Record { id, members: Box::from(init.as_slice())}))
+    }
     pub fn get_object_id(&self) -> usize {
         match self {
             Object::Function { func: _ } => 0usize,
