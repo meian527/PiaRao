@@ -65,6 +65,25 @@ let fib n = if n <= 1 then n else fib(n - 1) + fib(n - 2);
 let result = fib 30;
 ```
 
+### Record
+```piarao
+type Point = record x y;
+
+let point = Point 4 5;
+
+println point.x point.y;
+```
+### 成员函数（未实现）
+```piarao
+type Point = record x y {
+    area self = self.x + self.y;
+}
+
+let point = Point 4 5;
+
+println point.x point.y;
+println(point.area());
+```
 ### 运算符
 | 类型 | 运算符                                |
 |------|------------------------------------|
