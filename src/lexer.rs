@@ -1,5 +1,4 @@
 use core::panic;
-
 use phf::phf_map;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -251,6 +250,8 @@ impl<'a> Lexer<'a> {
         while self.pos < self.len {
             tokens.push(self.next());
         }
+        tokens.push(Token { t: 
+            TokenType::EOF, v: "".to_string(), l: 0, c: 0 });
         tokens
     }
 }
