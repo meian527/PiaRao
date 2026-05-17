@@ -405,18 +405,12 @@ impl<'a> Parser<'a> {
         }
         ast::Program::new(body)
     }
-    fn parse_stmt(&mut self) -> ast::Node {
+    fn parse_let(&mut self) -> ast::Stmt {
         let line = self.cur().l;
         let col = self.cur().c;
-        let stmt = if self.match_ok(lexer::TokenType::KWLet) {
-            self.advance();
-            if !self.match_ok(lexer::TokenType::Ident) {
-                self.error(line, col, &"Expected identifier after 'let'".to_string());
-                return ast::Node {
-                    stmt: ast::Stmt::Expr(Box::new(ast::Expr::Null)),
-                    l: line,
-                    c: col,
-                };
+        if !self.match_ok(lexer::TokenType::Ident) {
+                self.error(line, col, &"Expected identifier".to_string());
+                return ast::Stmt::Expr(Box::new(ast::Expr::Null))
             }
             let name = self.cur().v.clone();
             let mut lhs = ast::Expr::Ident(name.clone());
@@ -448,25 +442,37 @@ impl<'a> Parser<'a> {
                 node.stmt = ast::Stmt::Return(e.clone());
                 change_return = true;
             }
+            ast::Stmt::Let(
+                Box::new(lhs),
+                Box::new(ast::Node {
+                    l: expr_line,
+                    c: expr_col,
+                    stmt: if change_return {
+                        ast::Stmt::Return(Box::new(rhs))
+                    } else {
+                        ast::Stmt::NotPopValueExpr(Box::new(rhs))
+                    },
+                }),
+            )
+    }
+    fn parse_stmt(&mut self) -> ast::Node {
+        let line = self.cur().l;
+        let col = self.cur().c;
+        let stmt = if self.match_ok(lexer::TokenType::KWLet) {
+            self.advance();
             ast::Node {
-                stmt: ast::Stmt::Let(
-                    Box::new(lhs),
-                    Box::new(ast::Node {
-                        l: expr_line,
-                        c: expr_col,
-                        stmt: if change_return {
-                            ast::Stmt::Return(Box::new(rhs))
-                        } else {
-                            ast::Stmt::NotPopValueExpr(Box::new(rhs))
-                        },
-                    }),
-                ),
+                stmt: self.parse_let(),
                 l: line,
                 c: col,
             }
         }  else if self.match_ok(lexer::TokenType::KWType) {
             self.advance();
-            self.parse_type_def()
+            
+            ast::Node {
+                stmt: self.parse_type_def(),
+                l: line,
+                c: col,
+            }
         }
         else {
             let expr = self.parse_expr();
@@ -479,17 +485,15 @@ impl<'a> Parser<'a> {
         stmt
     }
 
-    fn parse_type_def(&mut self) -> ast::Node {
+    fn parse_type_def(&mut self) -> ast::Stmt {
         let name = self.cur().v.clone();
-        let line = self.cur().l;
-        let col = self.cur().c;
         self.consume(lexer::TokenType::Ident);
         self.consume(lexer::TokenType::Assign);
         match self.cur().t {
             lexer::TokenType::KWRecord => {
                 self.advance();
                 let mut members = Vec::new();
-                while !self.match_ok(lexer::TokenType::SemiColon) && self.pos < self.tokens.len() {
+                while !self.match_ok(lexer::TokenType::SemiColon) && self.pos < self.tokens.len() && !self.match_ok(lexer::TokenType::LBrace) {
                     if self.match_ok(lexer::TokenType::Ident) {
                         members.push(self.cur().v.clone());
                         self.advance();
@@ -497,10 +501,21 @@ impl<'a> Parser<'a> {
                         break;
                     }
                 }
-                ast::Node {
-                    stmt : ast::Stmt::RecordTypeDecl(name, members),
-                    l: line, c: col
+                let mut member_funcs = Vec::new();
+                if self.match_ok(lexer::TokenType::LBrace) {
+                    self.advance();
+                    while self.pos < self.tokens.len() && !self.match_ok(lexer::TokenType::RBrace) {
+                        member_funcs.push(self.parse_let());
+                        if self.match_ok(lexer::TokenType::RBrace) {
+                            break;
+                        } 
+                        self.consume(lexer::TokenType::SemiColon);
+                    }
+                    self.advance();
+                } else {
+                    self.consume(lexer::TokenType::SemiColon);
                 }
+                ast::Stmt::RecordTypeDecl(name, members, member_funcs)
             }
             _ => {
                 self.error(self.cur().l, self.cur().c, &"unexpected token on typedef".to_string());

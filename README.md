@@ -73,15 +73,15 @@ let point = Point 4 5;
 
 println point.x point.y;
 ```
-### 成员函数（未实现）
+### 成员函数
 ```piarao
 type Point = record x y {
     area self = self.x + self.y;
-}
+};
 
 let point = Point 4 5;
 
-println point.x point.y;
+println point.x " " point.y;
 println(point.area());
 ```
 ### 运算符

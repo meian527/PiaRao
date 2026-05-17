@@ -324,7 +324,7 @@ impl Interpreter {
             ast::Stmt::ADTypeDecl(_) => {
                 unimplemented!()
             }
-            ast::Stmt::RecordTypeDecl(name, members) => {
+            ast::Stmt::RecordTypeDecl(name, members, member_funcs) => {
                 let members = {
                     let mut result = HashMap::new();
                     for i in 0..members.len() {
@@ -335,7 +335,21 @@ impl Interpreter {
                 let size = members.len();
                 let id = self.record_metadata.len();
                 self.record_metadata.push(objects::ObjectMetadata {
-                    name: name.clone(), size, member_funcs: HashMap::new(), 
+                    name: name.clone(), size, member_funcs: {
+                        let mut result = HashMap::new();
+                        for m in member_funcs.iter() {
+                            let (idents, node) = if let ast::Stmt::Let(idents, expr) = m && let ast::Expr::IdentList(idents) = idents.as_ref() {
+                                (idents, expr)
+                            } else {
+                                self.error(l, c, "error in member func def");
+                                unreachable!()
+                            };
+                            result.insert(idents[0].clone(), ObjectRef::new(objects::Object::Function { 
+                                func: Function { params: idents[1..].to_vec(), body: FunctionImpl::General(node.stmt.clone()) }
+                            }));
+                        }
+                        result
+                    }, 
                     members: if members.is_empty() {
                         None
                     } else {
@@ -649,10 +663,13 @@ impl Interpreter {
                 if not_have_reuse_frame {
                     // 没有可复用的帧
                     let mut vars = HashMap::new();
+                    let mut args_iter = iter.into_iter();
                     if self.member_func_calling {
                         vars.insert("self".to_string(), self.stack.pop().unwrap());
+                        args_iter.next();
+                        self.member_func_calling = false;
                     }
-                    for (param, arg) in iter.into_iter().zip(args.into_iter()) {
+                    for (param, arg) in args_iter.zip(args.into_iter()) {
                         self.eval_expr(arg, l, c);
 
                         vars.insert(param, self.stack.pop().unwrap());
@@ -666,8 +683,16 @@ impl Interpreter {
                     self.sp += 1;
                 } else {
                     self.sp += 1;
-
-                    for (param, arg) in iter.into_iter().zip(args.into_iter()) {
+                    let mut args_iter = iter.into_iter();
+                    let this = self.stack.pop().unwrap().clone();
+                    let func_calling = self.member_func_calling;
+                    let cur_frame = self.cur_frame_mut();
+                    if func_calling {
+                        cur_frame.vars.insert("self".to_string(), this);
+                        args_iter.next();
+                        self.member_func_calling = false;
+                    }
+                    for (param, arg) in args_iter.zip(args.into_iter()) {
                         self.eval_expr(arg, l, c);
                         let result = self.stack.pop().unwrap();
                         self.cur_frame_mut().vars.insert(param, result);

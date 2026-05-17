@@ -7,7 +7,7 @@ pub enum Stmt {
     NotPopValueExpr(Box<Expr>),
     Let(Box<Expr>, Box<Node>),
     ADTypeDecl(Vec<(String, Vec<String>)>),
-    RecordTypeDecl(String, Vec<String>)
+    RecordTypeDecl(String, Vec<String>, Vec<Stmt>) // name members member_funcs_def
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -1,7 +1,10 @@
 let arr = ["1str1", "1str2", "1str3"];
 let str = arr[2].cat(arr[0]);
 println str;
-type Person = record name age;
+type Person = record name age {
+    introduce self = println("I am ", self.name, " ", self.age, " years old");
+};
 let person = Person "jack" 16;
 println person.name;
 println person.age;
+person.introduce();
