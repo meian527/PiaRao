@@ -1,10 +1,15 @@
-let arr = ["1str1", "1str2", "1str3"];
-let str = arr[2].cat(arr[0]);
-println str;
 type Person = record name age {
-    introduce self = println("I am ", self.name, " ", self.age, " years old");
+    introduce self = println("I am ", self.name, " ", self.age, " years old, I am human");
 };
+type Animal = record name kind {
+    introduce self = println("My kind is ", self.kind, " I am animal");
+};
+let intro thing = thing.introduce();
+
 let person = Person "jack" 16;
-println person.name;
-println person.age;
-person.introduce();
+let animal = Animal "peppa" "Pig";
+(Person "Li hua" 17).introduce();
+intro person;
+intro animal;
+
+println type_info(intro).equ("Object");

@@ -7,6 +7,7 @@ pub(crate) static BUILTIN_FUNCTIONS: LazyLock<HashMap<&str, ModuleFnPtr>> = Lazy
     let mut m: HashMap<&str, ModuleFnPtr> = HashMap::new();
     m.insert("sub", std::sync::Arc::new(sub as fn(ModuleFuncArgs) -> Value));
     m.insert("cat", std::sync::Arc::new(cat as fn(ModuleFuncArgs) -> Value));
+    m.insert("equ", std::sync::Arc::new(equ as fn(ModuleFuncArgs) -> Value));
     m
 });
 
@@ -55,6 +56,28 @@ pub fn cat(args: ModuleFuncArgs) -> Value {
         if let Object::String { data } = obj.as_ref() {
             result.push_str(data.as_str());
             return objects::Object::new_string_value(result);
+        }
+    }
+    unreachable!()
+}
+
+pub fn equ(args: ModuleFuncArgs) -> Value {
+    let args = args.args;
+    if args.len() != 2 {
+        panic!("`String::push` called with incorrect number of arguments");
+    }
+    let result = if let Value::Object(other) = &args[0] {
+        if let Object::String { data } = other.as_ref() {
+            data
+        } else {
+            panic!("Invalid argument type");
+        }
+    } else {
+        panic!("Invalid argument type");
+    };
+    if let Value::Object(obj) = &args[1] {
+        if let Object::String { data } = obj.as_ref() {
+            return Value::Bool(result.eq(data))
         }
     }
     unreachable!()
